@@ -1,0 +1,7 @@
+node_modules/
+outputs/
+bundle/
+dist/
+.env
+*.mp4
+*.log
