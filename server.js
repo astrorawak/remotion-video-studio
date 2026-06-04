@@ -161,13 +161,24 @@ async function executeTool(name, args, baseUrl) {
     const renderId = randomUUID();
     renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render Remotion...' };
 
-    // Render async
+    // Render async dengan progress update
     (async () => {
       try {
-        renderJobs[renderId].progress = 20;
-        renderJobs[renderId].message = 'Merender video dengan Remotion...';
+        renderJobs[renderId].progress = 10;
+        renderJobs[renderId].message = 'Menyiapkan komposisi Remotion...';
+        // Update progress setiap 3 detik agar tidak stuck
+        const progressTimer = setInterval(() => {
+          const job = renderJobs[renderId];
+          if (job && job.status === 'processing' && job.progress < 85) {
+            job.progress = Math.min(85, job.progress + 5);
+            job.message = `Merender frame video... (${job.progress}%)`;
+          } else {
+            clearInterval(progressTimer);
+          }
+        }, 3000);
         const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
         await renderVideo('MultiSceneVideo', { scenes, style }, outputPath);
+        clearInterval(progressTimer);
         const stats = fs.statSync(outputPath);
         renderJobs[renderId] = {
           status: 'done', progress: 100,
@@ -194,9 +205,20 @@ async function executeTool(name, args, baseUrl) {
 
     (async () => {
       try {
-        renderJobs[renderId].progress = 20;
+        renderJobs[renderId].progress = 10;
+        renderJobs[renderId].message = 'Menyiapkan animasi Google Search...';
+        const progressTimer = setInterval(() => {
+          const job = renderJobs[renderId];
+          if (job && job.status === 'processing' && job.progress < 85) {
+            job.progress = Math.min(85, job.progress + 8);
+            job.message = `Merender animasi... (${job.progress}%)`;
+          } else {
+            clearInterval(progressTimer);
+          }
+        }, 2000);
         const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
         await renderVideo('GoogleSearchVideo', { searchQuery, results, style }, outputPath);
+        clearInterval(progressTimer);
         const stats = fs.statSync(outputPath);
         renderJobs[renderId] = {
           status: 'done', progress: 100,
@@ -216,7 +238,7 @@ async function executeTool(name, args, baseUrl) {
     const { renderId } = args;
     const job = renderJobs[renderId];
     if (!job) return `❌ Render job \`${renderId}\` tidak ditemukan. Pastikan renderId benar.`;
-    if (job.status === 'processing') return `⏳ **Sedang diproses...** (${job.progress}%)\n\n${job.message || 'Mohon tunggu...'}`;
+    if (job.status === 'processing') return `⏳ **Sedang diproses... ${job.progress}%**\n\n${job.message || 'Mohon tunggu...'}\n\nCek lagi dalam 10-15 detik dengan tool ini.`;
     if (job.status === 'done') return `✅ **Video selesai!**\n\n📥 **Link Download**: ${job.downloadUrl}\n📦 Ukuran file: ${(job.fileSize / 1024).toFixed(1)} KB\n\nKlik link di atas untuk mendownload video MP4 Anda.`;
     return `❌ **Error**: ${job.error}`;
   }
