@@ -6,6 +6,13 @@ import { TipsScene } from './compositions/TipsScene';
 import { GoogleSearchScene } from './compositions/GoogleSearchScene';
 import { LyricScene } from './compositions/LyricScene';
 import { OutroScene } from './compositions/OutroScene';
+import { GSAPLandingScene } from './compositions/GSAPLandingScene';
+import { DataChartScene } from './compositions/DataChartScene';
+import { ArchDiagramScene } from './compositions/ArchDiagramScene';
+import { Product3DScene } from './compositions/Product3DScene';
+import { MobileAppScene } from './compositions/MobileAppScene';
+import { CinematicIntroScene } from './compositions/CinematicIntroScene';
+import { SocialMediaScene } from './compositions/SocialMediaScene';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -21,6 +28,28 @@ interface SceneData {
   results?: string[];
   duration?: number;
   style?: string;
+  // New fields for advanced scenes
+  productName?: string;
+  tagline?: string;
+  features?: { icon: string; title: string; desc: string }[];
+  primaryColor?: string;
+  accentColor?: string;
+  bgColor?: string;
+  data?: { label: string; value: number; color?: string }[];
+  unit?: string;
+  chartType?: string;
+  nodes?: any[];
+  connections?: any[];
+  parts?: any[];
+  scenario?: string;
+  headline?: string;
+  stats?: { label: string; value: string; icon: string }[];
+  bgGradient?: [string, string];
+  username?: string;
+  category?: string;
+  title?: string;
+  subtitle?: string;
+  appName?: string;
 }
 
 interface MultiSceneVideoProps {
@@ -32,6 +61,7 @@ interface MultiSceneVideoProps {
 const SceneRenderer: React.FC<{ scene: SceneData; style: string }> = ({ scene, style }) => {
   const s = scene.style || style;
   switch (scene.type) {
+    // Original scenes
     case 'title_scene':
       return <TitleScene text={scene.text || ''} subtext={scene.subtext} style={s} />;
     case 'text_scene':
@@ -44,6 +74,84 @@ const SceneRenderer: React.FC<{ scene: SceneData; style: string }> = ({ scene, s
       return <OutroScene text={scene.text || ''} cta={scene.cta} style={s} />;
     case 'google_search':
       return <GoogleSearchScene searchQuery={scene.searchQuery || scene.text || ''} results={scene.results} style={s as 'light' | 'dark'} />;
+
+    // NEW: Advanced scenes
+    case 'landing_page':
+      return (
+        <GSAPLandingScene
+          productName={scene.productName || scene.text || 'Product'}
+          tagline={scene.tagline || scene.subtext || 'The Future is Here'}
+          features={scene.features || []}
+          primaryColor={scene.primaryColor}
+          accentColor={scene.accentColor}
+          bgColor={scene.bgColor}
+        />
+      );
+    case 'data_chart':
+      return (
+        <DataChartScene
+          title={scene.title || scene.text || 'Data Chart'}
+          subtitle={scene.subtitle || scene.subtext}
+          data={scene.data || []}
+          unit={scene.unit || ''}
+          chartType={scene.chartType as 'bar' | 'race' || 'bar'}
+          bgColor={scene.bgColor}
+          accentColor={scene.accentColor || scene.primaryColor}
+        />
+      );
+    case 'arch_diagram':
+      return (
+        <ArchDiagramScene
+          title={scene.title || scene.text || 'System Architecture'}
+          nodes={scene.nodes}
+          connections={scene.connections}
+          bgColor={scene.bgColor}
+        />
+      );
+    case 'product_3d':
+      return (
+        <Product3DScene
+          productName={scene.productName || scene.text || 'Product'}
+          tagline={scene.tagline || scene.subtext}
+          parts={scene.parts}
+          primaryColor={scene.primaryColor}
+          bgColor={scene.bgColor}
+          mode={scene.scenario as 'showcase' | 'exploded' || 'exploded'}
+        />
+      );
+    case 'mobile_app':
+      return (
+        <MobileAppScene
+          appName={scene.appName || scene.productName || 'App'}
+          scenario={scene.scenario as 'checkout' | 'success' | 'onboarding' | 'notification' || 'checkout'}
+          primaryColor={scene.primaryColor}
+          bgColor={scene.bgColor}
+          title={scene.title || scene.text}
+          subtitle={scene.subtitle || scene.subtext}
+        />
+      );
+    case 'cinematic_intro':
+      return (
+        <CinematicIntroScene
+          title={scene.title || scene.text || 'Epic Title'}
+          subtitle={scene.subtitle || scene.subtext}
+          category={scene.category || 'FILM'}
+          style={scene.style as 'dark' | 'light' | 'neon' | 'gradient' || 'dark'}
+          accentColor={scene.accentColor || scene.primaryColor}
+        />
+      );
+    case 'social_media':
+      return (
+        <SocialMediaScene
+          headline={scene.headline || scene.text || 'Viral Content'}
+          subtext={scene.subtext}
+          stats={scene.stats}
+          style={scene.scenario as 'instagram' | 'tiktok' | 'youtube' | 'twitter' || 'instagram'}
+          bgGradient={scene.bgGradient}
+          username={scene.username}
+        />
+      );
+
     default:
       return <TextScene text={scene.text || ''} subtext={scene.subtext} style={s} />;
   }
@@ -66,24 +174,27 @@ export const MultiSceneVideo: React.FC<MultiSceneVideoProps> = ({ scenes, style 
 };
 
 // ─────────────────────────────────────────────
-// Google Search Standalone
+// Standalone Compositions
 // ─────────────────────────────────────────────
-interface GoogleSearchVideoProps {
-  searchQuery: string;
-  results?: string[];
-  style?: 'light' | 'dark';
-}
-
-export const GoogleSearchVideo: React.FC<GoogleSearchVideoProps> = (props) => {
+export const GoogleSearchVideo: React.FC<{ searchQuery: string; results?: string[]; style?: 'light' | 'dark' }> = (props) => {
   return <GoogleSearchScene {...props} />;
 };
 
+export const LandingPageVideo: React.FC<any> = (props) => <GSAPLandingScene {...props} />;
+export const DataChartVideo: React.FC<any> = (props) => <DataChartScene {...props} />;
+export const ArchDiagramVideo: React.FC<any> = (props) => <ArchDiagramScene {...props} />;
+export const Product3DVideo: React.FC<any> = (props) => <Product3DScene {...props} />;
+export const MobileAppVideo: React.FC<any> = (props) => <MobileAppScene {...props} />;
+export const CinematicIntroVideo: React.FC<any> = (props) => <CinematicIntroScene {...props} />;
+export const SocialMediaVideo: React.FC<any> = (props) => <SocialMediaScene {...props} />;
+
 // ─────────────────────────────────────────────
-// Register Compositions
+// Register All Compositions
 // ─────────────────────────────────────────────
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      {/* Original multi-scene */}
       <Composition
         id="MultiSceneVideo"
         component={MultiSceneVideo}
@@ -105,6 +216,8 @@ export const RemotionRoot: React.FC = () => {
           return { durationInFrames: total || 90 };
         }}
       />
+
+      {/* Google Search */}
       <Composition
         id="GoogleSearchVideo"
         component={GoogleSearchVideo}
@@ -112,21 +225,143 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1280}
         height={720}
-        defaultProps={{
-          searchQuery: 'Cara belajar coding',
-          results: ['Tutorial Coding untuk Pemula', 'Belajar Python dalam 30 Hari'],
-          style: 'light' as const,
-        }}
+        defaultProps={{ searchQuery: 'Cara belajar coding', results: ['Tutorial Coding', 'Belajar Python'], style: 'light' as const }}
         calculateMetadata={({ props }) => {
           const fps = 30;
-          const baseTime = 2;
-          const resultTime = (props.results?.length || 0) * 0.5;
-          return { durationInFrames: Math.round((baseTime + resultTime + 2) * fps) };
+          return { durationInFrames: Math.round((2 + (props.results?.length || 0) * 0.5 + 2) * fps) };
+        }}
+      />
+
+      {/* Landing Page */}
+      <Composition
+        id="LandingPageVideo"
+        component={LandingPageVideo}
+        durationInFrames={270}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          productName: 'Aria',
+          tagline: 'The Future of Work Simplified',
+          features: [
+            { icon: '⚡', title: 'Lightning Fast', desc: 'Process tasks 10x faster' },
+            { icon: '🔒', title: 'Secure', desc: 'Enterprise-grade security' },
+            { icon: '🎯', title: 'Smart', desc: 'AI-powered precision' },
+            { icon: '📊', title: 'Analytics', desc: 'Real-time insights' },
+          ],
+          primaryColor: '#6C63FF',
+          accentColor: '#FF6584',
+          bgColor: '#0A0A0F',
+        }}
+      />
+
+      {/* Data Chart */}
+      <Composition
+        id="DataChartVideo"
+        component={DataChartVideo}
+        durationInFrames={210}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          title: 'Populasi Asia Tenggara',
+          subtitle: 'Data 2024 (juta jiwa)',
+          data: [
+            { label: 'Indonesia', value: 275 },
+            { label: 'Vietnam', value: 97 },
+            { label: 'Philippines', value: 115 },
+            { label: 'Thailand', value: 72 },
+            { label: 'Malaysia', value: 33 },
+          ],
+          unit: 'juta',
+          accentColor: '#6C63FF',
+          bgColor: '#0D1117',
+        }}
+      />
+
+      {/* Architecture Diagram */}
+      <Composition
+        id="ArchDiagramVideo"
+        component={ArchDiagramVideo}
+        durationInFrames={270}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{ title: 'System Architecture', bgColor: '#0D1117' }}
+      />
+
+      {/* Product 3D */}
+      <Composition
+        id="Product3DVideo"
+        component={Product3DVideo}
+        durationInFrames={270}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          productName: 'Meridian Pro',
+          tagline: 'Engineered for Excellence',
+          primaryColor: '#6C63FF',
+          bgColor: '#080B14',
+          mode: 'exploded',
+        }}
+      />
+
+      {/* Mobile App */}
+      <Composition
+        id="MobileAppVideo"
+        component={MobileAppVideo}
+        durationInFrames={210}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          appName: 'PayQuick',
+          scenario: 'checkout',
+          primaryColor: '#6C63FF',
+          bgColor: '#0A0A0F',
+        }}
+      />
+
+      {/* Cinematic Intro */}
+      <Composition
+        id="CinematicIntroVideo"
+        component={CinematicIntroVideo}
+        durationInFrames={210}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          title: 'The Future is Now',
+          subtitle: 'A story about innovation',
+          category: 'DOCUMENTARY',
+          style: 'dark',
+          accentColor: '#6C63FF',
+        }}
+      />
+
+      {/* Social Media */}
+      <Composition
+        id="SocialMediaVideo"
+        component={SocialMediaVideo}
+        durationInFrames={210}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          headline: 'Tips Sukses di 2024',
+          subtext: '5 hal yang mengubah hidup saya',
+          stats: [
+            { label: 'Views', value: '1.2M', icon: '👁️' },
+            { label: 'Likes', value: '98K', icon: '❤️' },
+            { label: 'Shares', value: '12K', icon: '🔄' },
+          ],
+          bgGradient: ['#667EEA', '#764BA2'] as [string, string],
+          username: '@creator',
         }}
       />
     </>
   );
 };
 
-// WAJIB: registerRoot agar Remotion mengenali entry point ini
 registerRoot(RemotionRoot);
