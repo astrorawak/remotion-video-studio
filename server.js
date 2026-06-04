@@ -709,97 +709,48 @@ async function executeTool(name, args, baseUrl) {
     const analysisId = randomUUID();
     renderJobs[analysisId] = { status: 'processing', progress: 5, message: 'Mentranskripsi video...' };
 
+    // Manus AI Backend URL - dapat dioverride via environment variable
+    // Setelah publish web app, update MANUS_AI_URL di Railway environment variables
+    const MANUS_AI_URL = process.env.MANUS_AI_URL || 'https://zm2fpygawvvupyvp35uxjp.manus.space';
+
     // Run analysis async
     (async () => {
       try {
-        // Step 1: Transcribe via Whisper API
         renderJobs[analysisId].progress = 10;
-        renderJobs[analysisId].message = 'Mentranskripsi audio...';
+        renderJobs[analysisId].message = 'Menghubungi AI backend...';
 
-        const FormData = require('form-data');
+        // Panggil Manus web app untuk transkripsi + analisis
         const axios = require('axios');
-        const https = require('https');
-        const os = require('os');
-        const tmpPath = path.join(os.tmpdir(), `${analysisId}.mp4`);
-
-        // Download video to temp file
-        await new Promise((resolve, reject) => {
-          const file = fs.createWriteStream(tmpPath);
-          https.get(videoUrl, (response) => {
-            response.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-          }).on('error', reject);
-        });
-
-        renderJobs[analysisId].progress = 25;
-        renderJobs[analysisId].message = 'Menganalisis konten...';
-
-        // Transcribe with Whisper
-        const formData = new FormData();
-        formData.append('file', fs.createReadStream(tmpPath), { filename: 'video.mp4', contentType: 'video/mp4' });
-        formData.append('model', 'whisper-1');
-        formData.append('language', language);
-        formData.append('response_format', 'verbose_json');
-
-        const whisperResp = await axios.post(
-          'https://api.openai.com/v1/audio/transcriptions',
-          formData,
-          { headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, maxBodyLength: Infinity }
-        );
-
-        const transcript = whisperResp.data.text || '';
-        fs.unlinkSync(tmpPath); // cleanup
-
-        renderJobs[analysisId].progress = 45;
-        renderJobs[analysisId].message = 'Membuat rencana animasi...';
-
-        // Step 2: Analyze with GPT-4 to generate animation plan
-        const systemPrompt = `Kamu adalah AI video editor profesional yang menganalisis transkrip presentasi dan menghasilkan rencana animasi pendukung menggunakan Remotion.
-
-Berdasarkan transkrip, buat MAKSIMAL 5 animasi pendukung yang paling relevan dari daftar berikut:
-- title_scene: judul/topik utama
-- text_scene: poin narasi penting
-- tips_scene: daftar tips/langkah (jika ada)
-- data_chart: data numerik yang disebutkan (jika ada)
-- kinetic_typography: quote atau kalimat impactful
-- whiteboard_scene: agenda/rencana/poin-poin
-- google_search: topik yang bisa jadi hook pencarian
-
-Respond HANYA dengan JSON array seperti ini:
-[
-  {
-    "type": "title_scene",
-    "text": "...",
-    "subtext": "...",
-    "duration": 4,
-    "reason": "Mengapa animasi ini relevan"
-  }
-]`;
-
-        const gptResp = await axios.post(
-          'https://api.openai.com/v1/chat/completions',
-          {
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Transkrip presentasi:\n\n${transcript.substring(0, 4000)}` }
-            ],
-            response_format: { type: 'json_object' },
-            max_tokens: 2000,
-          },
-          { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
-        );
-
-        let animationPlan;
+        
+        let analyzeResp;
         try {
-          const parsed = JSON.parse(gptResp.data.choices[0].message.content);
-          animationPlan = Array.isArray(parsed) ? parsed : (parsed.animations || parsed.scenes || []);
-        } catch { animationPlan = []; }
+          analyzeResp = await axios.post(
+            `${MANUS_AI_URL}/api/analyze-video`,
+            { videoUrl, language },
+            {
+              headers: { 'Content-Type': 'application/json' },
+              timeout: 300000, // 5 menit timeout
+            }
+          );
+        } catch (axiosErr) {
+          const errMsg = axiosErr.response?.data?.error || axiosErr.message;
+          throw new Error(`AI backend error: ${errMsg}`);
+        }
+
+        const { success, transcript, animationPlan, error: analyzeError } = analyzeResp.data;
+        
+        if (!success || analyzeError) {
+          throw new Error(analyzeError || 'Analisis gagal');
+        }
+
+        if (!animationPlan || animationPlan.length === 0) {
+          throw new Error('Tidak ada rencana animasi yang dihasilkan dari video ini');
+        }
 
         renderJobs[analysisId].progress = 60;
         renderJobs[analysisId].message = `Merender ${animationPlan.length} animasi...`;
 
-        // Step 3: Render all animations
+        // Render semua animasi
         const renderResults = [];
         for (let i = 0; i < animationPlan.length; i++) {
           const scene = animationPlan[i];
@@ -822,7 +773,7 @@ Respond HANYA dengan JSON array seperti ini:
           status: 'done',
           progress: 100,
           message: 'Analisis selesai!',
-          transcript: transcript.substring(0, 500) + (transcript.length > 500 ? '...' : ''),
+          transcript: transcript || '(transkripsi tersedia)',
           animationCount: renderResults.length,
           animations: renderResults,
         };
@@ -833,7 +784,7 @@ Respond HANYA dengan JSON array seperti ini:
       }
     })();
 
-    return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 1-3 menit (transkripsi + analisis + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
+    return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 2-5 menit (download + transkripsi + analisis + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
   }
 
   // check_render_status
