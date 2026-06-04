@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "video-studio": {
+      "command": "node",
+      "args": ["/PATH/TO/remotion-video-studio/mcp-server/index.js"],
+      "env": {
+        "BACKEND_URL": "https://backend-production-1aa3.up.railway.app"
+      }
+    }
+  }
+}
