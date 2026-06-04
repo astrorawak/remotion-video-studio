@@ -706,56 +706,149 @@ async function executeTool(name, args, baseUrl) {
     const { videoUrl, language = 'id', layout = 'full', style = 'cinematic' } = args;
     if (!videoUrl) throw new Error('videoUrl diperlukan');
 
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY belum dikonfigurasi di Railway environment variables');
+
     const analysisId = randomUUID();
-    renderJobs[analysisId] = { status: 'processing', progress: 5, message: 'Mentranskripsi video...' };
+    renderJobs[analysisId] = { status: 'processing', progress: 5, message: 'Menyiapkan analisis video...' };
 
-    // Manus AI Backend URL - dapat dioverride via environment variable
-    // Setelah publish web app, update MANUS_AI_URL di Railway environment variables
-    const MANUS_AI_URL = process.env.MANUS_AI_URL || 'https://zm2fpygawvvupyvp35uxjp.manus.space';
+    // Helper: konversi Google Drive URL ke direct download
+    function convertGoogleDriveUrl(url) {
+      const match = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+      if (match) return `https://drive.google.com/uc?export=download&id=${match[1]}&confirm=t`;
+      const match2 = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
+      if (match2) return `https://drive.google.com/uc?export=download&id=${match2[1]}&confirm=t`;
+      return url;
+    }
 
-    // Run analysis async
+    // Run analysis async (non-blocking)
     (async () => {
       try {
-        renderJobs[analysisId].progress = 10;
-        renderJobs[analysisId].message = 'Menghubungi AI backend...';
-
-        // Panggil Manus web app untuk transkripsi + analisis
         const axios = require('axios');
-        
-        let analyzeResp;
+        const FormData = require('form-data');
+        const os = require('os');
+
+        // Step 1: Download video
+        renderJobs[analysisId].progress = 10;
+        renderJobs[analysisId].message = 'Mengunduh video...';
+        const directUrl = convertGoogleDriveUrl(videoUrl);
+        console.log('[Analyze] Downloading from:', directUrl);
+
+        const videoResp = await axios.get(directUrl, {
+          responseType: 'arraybuffer',
+          timeout: 120000,
+          maxContentLength: 25 * 1024 * 1024,
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
+
+        const videoBuffer = Buffer.from(videoResp.data);
+        const contentType = videoResp.headers['content-type'] || 'video/mp4';
+        let ext = '.mp4';
+        if (contentType.includes('webm')) ext = '.webm';
+        else if (contentType.includes('quicktime') || contentType.includes('mov')) ext = '.mov';
+        else if (contentType.includes('mp3') || contentType.includes('mpeg')) ext = '.mp3';
+        else if (contentType.includes('wav')) ext = '.wav';
+        else if (contentType.includes('ogg')) ext = '.ogg';
+
+        const tmpFile = path.join(os.tmpdir(), `analyze_${analysisId}${ext}`);
+        fs.writeFileSync(tmpFile, videoBuffer);
+        console.log('[Analyze] Saved to:', tmpFile, '| Size:', videoBuffer.length, 'bytes');
+
+        // Step 2: Transkripsi dengan Groq Whisper
+        renderJobs[analysisId].progress = 30;
+        renderJobs[analysisId].message = 'Mentranskripsi audio dengan Groq Whisper...';
+
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(tmpFile), { filename: `audio${ext}`, contentType });
+        formData.append('model', 'whisper-large-v3-turbo');
+        formData.append('language', language);
+        formData.append('response_format', 'json');
+
+        const whisperResp = await axios.post(
+          'https://api.groq.com/openai/v1/audio/transcriptions',
+          formData,
+          {
+            headers: { ...formData.getHeaders(), 'Authorization': `Bearer ${GROQ_API_KEY}` },
+            timeout: 120000,
+          }
+        );
+
+        const transcript = whisperResp.data.text || '';
+        console.log('[Analyze] Transcript length:', transcript.length);
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+
+        if (!transcript || transcript.trim().length < 10) {
+          throw new Error('Transkripsi terlalu pendek atau kosong. Pastikan video memiliki audio yang jelas.');
+        }
+
+        // Step 3: Analisis dengan Groq LLM
+        renderJobs[analysisId].progress = 55;
+        renderJobs[analysisId].message = 'Menganalisis konten dengan AI...';
+
+        const systemPrompt = `Kamu adalah asisten pembuat animasi video presentasi profesional.
+Berdasarkan transkripsi video, buat rencana animasi yang relevan dan menarik.
+Jenis animasi yang tersedia: kinetic_typography, data_chart, bullet_points, title_card, countdown, progress_bar.
+Buat 3-5 animasi yang paling relevan. Kembalikan HANYA JSON array, tanpa penjelasan tambahan.`;
+
+        const userPrompt = `Transkripsi video (bahasa: ${language}):
+"${transcript.substring(0, 3000)}"
+
+Buat rencana animasi dalam format JSON array:
+[
+  {
+    "type": "kinetic_typography",
+    "text": "teks utama animasi",
+    "subtext": "teks pendukung (opsional)",
+    "reason": "alasan mengapa animasi ini relevan"
+  }
+]`;
+
+        const llmResp = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          },
+          {
+            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+            timeout: 60000,
+          }
+        );
+
+        const llmContent = llmResp.data.choices[0].message.content;
+
+        // Parse JSON dari response LLM
+        let animationPlan = [];
         try {
-          analyzeResp = await axios.post(
-            `${MANUS_AI_URL}/api/analyze-video`,
-            { videoUrl, language },
-            {
-              headers: { 'Content-Type': 'application/json' },
-              timeout: 300000, // 5 menit timeout
-            }
-          );
-        } catch (axiosErr) {
-          const errMsg = axiosErr.response?.data?.error || axiosErr.message;
-          throw new Error(`AI backend error: ${errMsg}`);
+          const jsonMatch = llmContent.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) animationPlan = JSON.parse(jsonMatch[0]);
+          else animationPlan = JSON.parse(llmContent);
+        } catch (parseErr) {
+          const words = transcript.split(' ').slice(0, 8).join(' ');
+          animationPlan = [
+            { type: 'kinetic_typography', text: words, reason: 'Kutipan pembuka dari video' },
+            { type: 'bullet_points', text: 'Poin Utama', subtext: transcript.substring(0, 100), reason: 'Ringkasan konten' },
+          ];
         }
 
-        const { success, transcript, animationPlan, error: analyzeError } = analyzeResp.data;
-        
-        if (!success || analyzeError) {
-          throw new Error(analyzeError || 'Analisis gagal');
+        if (!Array.isArray(animationPlan) || animationPlan.length === 0) {
+          throw new Error('AI tidak berhasil membuat rencana animasi');
         }
 
-        if (!animationPlan || animationPlan.length === 0) {
-          throw new Error('Tidak ada rencana animasi yang dihasilkan dari video ini');
-        }
-
-        renderJobs[analysisId].progress = 60;
+        // Step 4: Render semua animasi
+        renderJobs[analysisId].progress = 70;
         renderJobs[analysisId].message = `Merender ${animationPlan.length} animasi...`;
 
-        // Render semua animasi
         const renderResults = [];
         for (let i = 0; i < animationPlan.length; i++) {
           const scene = animationPlan[i];
           const renderId = randomUUID();
-          const scenes = [{ ...scene, bgLayout: layout }];
+          const scenes = [{ type: scene.type || 'kinetic_typography', text: scene.text || 'Animasi', subtext: scene.subtext || '', bgLayout: layout }];
           startRender(renderId, 'MultiSceneVideo', { scenes, style }, baseUrl, 3000, 5);
           renderResults.push({
             index: i + 1,
@@ -766,17 +859,18 @@ async function executeTool(name, args, baseUrl) {
             statusUrl: `${baseUrl}/status/${renderId}`,
             downloadUrl: `${baseUrl}/download/${renderId}`,
           });
-          renderJobs[analysisId].progress = 60 + Math.round((i + 1) / animationPlan.length * 35);
+          renderJobs[analysisId].progress = 70 + Math.round((i + 1) / animationPlan.length * 28);
         }
 
         renderJobs[analysisId] = {
           status: 'done',
           progress: 100,
           message: 'Analisis selesai!',
-          transcript: transcript || '(transkripsi tersedia)',
+          transcript: transcript.substring(0, 500) + (transcript.length > 500 ? '...' : ''),
           animationCount: renderResults.length,
           animations: renderResults,
         };
+        console.log('[Analyze] Done! Generated', renderResults.length, 'animations');
 
       } catch (err) {
         console.error('[Analyze] Error:', err.message);
@@ -784,7 +878,7 @@ async function executeTool(name, args, baseUrl) {
       }
     })();
 
-    return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 2-5 menit (download + transkripsi + analisis + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
+    return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 2-4 menit (download + transkripsi Groq Whisper + analisis AI + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
   }
 
   // check_render_status
