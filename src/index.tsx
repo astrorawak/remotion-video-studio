@@ -13,6 +13,12 @@ import { Product3DScene } from './compositions/Product3DScene';
 import { MobileAppScene } from './compositions/MobileAppScene';
 import { CinematicIntroScene } from './compositions/CinematicIntroScene';
 import { SocialMediaScene } from './compositions/SocialMediaScene';
+import { HUDScene } from './compositions/HUDScene';
+import { AlgorithmicScene } from './compositions/AlgorithmicScene';
+import { BrutalistScene } from './compositions/BrutalistScene';
+import { SketchbookScene } from './compositions/SketchbookScene';
+import { WhiteboardScene } from './compositions/WhiteboardScene';
+import { KineticTypographyScene } from './compositions/KineticTypographyScene';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -29,6 +35,15 @@ interface SceneData {
   duration?: number;
   style?: string;
   // New fields for advanced scenes
+  // v4.0 fields
+  words?: string[];
+  highlightWords?: string[];
+  countdown?: number;
+  stickies?: any[];
+  points?: string[];
+  author?: string;
+  number?: string;
+  bgLayout?: 'full' | 'split' | 'greenscreen';
   productName?: string;
   tagline?: string;
   features?: { icon: string; title: string; desc: string }[];
@@ -149,6 +164,73 @@ const SceneRenderer: React.FC<{ scene: SceneData; style: string }> = ({ scene, s
           style={scene.scenario as 'instagram' | 'tiktok' | 'youtube' | 'twitter' || 'instagram'}
           bgGradient={scene.bgGradient}
           username={scene.username}
+        />
+      );
+
+    // v4.0 scenes
+    case 'hud_scene':
+      return (
+        <HUDScene
+          title={scene.title || scene.text || 'MISSION CONTROL'}
+          subtitle={scene.subtitle || scene.subtext || 'SYSTEM ONLINE'}
+          stats={scene.stats as any}
+          countdown={scene.countdown || 10}
+          accentColor={scene.accentColor || scene.primaryColor || '#FF3B30'}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+
+    case 'algorithmic_scene':
+      return (
+        <AlgorithmicScene
+          title={scene.title || scene.text || 'YOUR YEAR'}
+          subtitle={scene.subtitle || scene.subtext || 'Wrapped 2024'}
+          stats={scene.stats as any}
+          username={scene.username || '@creator'}
+          gradient={scene.bgGradient as any || ['#FF006E', '#8338EC', '#3A86FF']}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+
+    case 'brutalist_scene':
+      return (
+        <BrutalistScene
+          title={scene.title || scene.text || 'DESIGN IS DEAD'}
+          subtitle={scene.subtitle || scene.subtext || 'Long live the machine'}
+          body={scene.body || ''}
+          number={scene.number || '01'}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+
+    case 'sketchbook_scene':
+      return (
+        <SketchbookScene
+          title={scene.title || scene.text || 'My Big Idea'}
+          points={scene.points || scene.tips || []}
+          author={scene.author || scene.subtext || ''}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+
+    case 'whiteboard_scene':
+      return (
+        <WhiteboardScene
+          title={scene.title || scene.text || 'The Plan'}
+          stickies={scene.stickies || []}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+
+    case 'kinetic_typography':
+      return (
+        <KineticTypographyScene
+          words={scene.words || (scene.text ? scene.text.split(' ') : [])}
+          highlightWords={scene.highlightWords || []}
+          style={scene.style as any || 'dark'}
+          accentColor={scene.accentColor || scene.primaryColor || '#6C63FF'}
+          layout={scene.bgLayout || 'full'}
+          fontSize={scene.fontSize as any || 72}
         />
       );
 

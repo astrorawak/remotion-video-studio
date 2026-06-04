@@ -95,7 +95,7 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
 }
 
 // ─────────────────────────────────────────────
-// MCP Tools Definition (v3.0 - 10 tools)
+// MCP Tools Definition (v4.0 - 17 tools)
 // ─────────────────────────────────────────────
 const MCP_TOOLS = [
   {
@@ -110,7 +110,7 @@ const MCP_TOOLS = [
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['title_scene', 'text_scene', 'lyric_scene', 'tips_scene', 'outro_scene'] },
+              type: { type: 'string', enum: ['title_scene', 'text_scene', 'lyric_scene', 'tips_scene', 'outro_scene', 'hud_scene', 'algorithmic_scene', 'brutalist_scene', 'sketchbook_scene', 'whiteboard_scene', 'kinetic_typography', 'landing_page', 'data_chart', 'arch_diagram', 'product_3d', 'mobile_app', 'cinematic_intro', 'social_media', 'google_search'] },
               text: { type: 'string' },
               subtext: { type: 'string' },
               tips: { type: 'array', items: { type: 'string' } },
@@ -323,6 +323,131 @@ const MCP_TOOLS = [
       required: ['headline'],
     },
   },
+  // ─── v4.0 NEW TOOLS ───
+  {
+    name: 'render_hud_scene',
+    description: 'Buat video animasi HUD/Mission Control bergaya sci-fi dengan latar gelap, neon merah/biru, gauge, countdown timer, dan grid lines. Cocok untuk konten tech, gaming, atau dramatic reveal.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul utama (capslock untuk efek terbaik)' },
+        subtitle: { type: 'string', description: 'Subjudul status sistem' },
+        stats: {
+          type: 'array',
+          description: 'Data statistik yang ditampilkan (maks 4)',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string' },
+              value: { type: 'string' },
+            },
+          },
+        },
+        accentColor: { type: 'string', description: 'Warna neon aksen hex (default: #FF3B30)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'], description: 'full=normal, split=ada ruang webcam di kanan, greenscreen=background hijau untuk chroma key' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'render_algorithmic_scene',
+    description: 'Buat video animasi bergaya TikTok/Spotify Wrapped dengan kartu UI melayang, gradasi cerah, dan counter statistik. Cocok untuk konten viral, year-in-review, atau showcase pencapaian.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul besar (contoh: YOUR YEAR, TOP PICKS)' },
+        subtitle: { type: 'string', description: 'Subjudul (contoh: Wrapped 2024)' },
+        stats: {
+          type: 'array',
+          description: 'Statistik yang ditampilkan (maks 4)',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string' },
+              value: { type: 'string' },
+              icon: { type: 'string', description: 'Emoji icon' },
+            },
+          },
+        },
+        username: { type: 'string', description: 'Username/handle' },
+        gradient: { type: 'array', items: { type: 'string' }, description: 'Tiga warna gradient [warna1, warna2, warna3]' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'render_brutalist_scene',
+    description: 'Buat video animasi bergaya Brutalist/Architectural dengan tekstur beton, tipografi monolitik hitam-putih, dan garis tegas. Cocok untuk konten bold, statement, atau artistic.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul utama (capslock, maks 4 kata)' },
+        subtitle: { type: 'string', description: 'Subjudul' },
+        body: { type: 'string', description: 'Teks isi/deskripsi' },
+        number: { type: 'string', description: 'Nomor dekoratif besar (contoh: 01, 02)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'render_sketchbook_scene',
+    description: 'Buat video animasi bergaya buku catatan/sketchbook dengan tekstur kertas, font tulisan tangan, panah sketsa, dan stabilo. Cocok untuk konten edukasi, brainstorming, atau personal.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul di atas halaman' },
+        points: { type: 'array', items: { type: 'string' }, description: 'Poin-poin yang ditulis (maks 5)' },
+        author: { type: 'string', description: 'Catatan penulis di bawah' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'render_whiteboard_scene',
+    description: 'Buat video animasi bergaya whiteboard kantor dengan sticky notes warna-warni, grid, dan panah penghubung. Cocok untuk konten planning, brainstorming, atau tutorial.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul di whiteboard' },
+        stickies: {
+          type: 'array',
+          description: 'Sticky notes (maks 6)',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string' },
+              color: { type: 'string', description: 'Warna hex sticky note' },
+              x: { type: 'number', description: 'Posisi X (pixel dari kiri)' },
+              y: { type: 'number', description: 'Posisi Y (pixel dari atas)' },
+              rotate: { type: 'number', description: 'Rotasi derajat (-5 sampai 5)' },
+            },
+            required: ['text'],
+          },
+        },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'render_kinetic_typography',
+    description: 'Buat video animasi kinetic typography di mana setiap kata muncul satu per satu dengan timing dramatis. Cocok untuk quote, narasi, atau teks yang ingin disampaikan dengan impak.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        words: { type: 'array', items: { type: 'string' }, description: 'Array kata-kata yang akan muncul satu per satu' },
+        highlightWords: { type: 'array', items: { type: 'string' }, description: 'Kata-kata yang diberi warna aksen/highlight' },
+        style: { type: 'string', enum: ['dark', 'light', 'neon', 'gradient'], description: 'Gaya visual background' },
+        accentColor: { type: 'string', description: 'Warna aksen untuk highlight words (hex)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+        fontSize: { type: 'number', description: 'Ukuran font (default: 72)' },
+      },
+      required: ['words'],
+    },
+  },
   {
     name: 'check_render_status',
     description: 'Cek status render video. Gunakan renderId dari hasil render sebelumnya. Jika status "done", berikan link download kepada pengguna.',
@@ -425,6 +550,56 @@ async function executeTool(name, args, baseUrl) {
     return `✅ **Social Media Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 20-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
 
+  // v4.0 tools
+  if (name === 'render_hud_scene') {
+    const { title = 'MISSION CONTROL', subtitle = 'SYSTEM ONLINE', stats = [], accentColor = '#FF3B30', layout = 'full' } = args;
+    const renderId = randomUUID();
+    const scenes = [{ type: 'hud_scene', text: title, subtext: subtitle, stats, accentColor, bgLayout: layout, duration: 5 }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **HUD/Mission Control dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_algorithmic_scene') {
+    const { title = 'YOUR YEAR', subtitle = 'Wrapped 2024', stats = [], username = '@creator', gradient = ['#FF006E', '#8338EC', '#3A86FF'], layout = 'full' } = args;
+    const renderId = randomUUID();
+    const scenes = [{ type: 'algorithmic_scene', text: title, subtext: subtitle, stats, username, bgGradient: gradient, bgLayout: layout, duration: 5 }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **Algorithmic/Wrapped Scene dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_brutalist_scene') {
+    const { title = 'DESIGN IS DEAD', subtitle = 'Long live the machine', body = '', number = '01', layout = 'full' } = args;
+    const renderId = randomUUID();
+    const scenes = [{ type: 'brutalist_scene', text: title, subtext: subtitle, body, number, bgLayout: layout, duration: 5 }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **Brutalist Scene dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_sketchbook_scene') {
+    const { title = 'My Big Idea', points = [], author = '', layout = 'full' } = args;
+    const renderId = randomUUID();
+    const scenes = [{ type: 'sketchbook_scene', text: title, points, author, bgLayout: layout, duration: 5 }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **Sketchbook Scene dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_whiteboard_scene') {
+    const { title = 'The Plan', stickies = [], layout = 'full' } = args;
+    const renderId = randomUUID();
+    const scenes = [{ type: 'whiteboard_scene', text: title, stickies, bgLayout: layout, duration: 5 }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **Whiteboard Scene dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_kinetic_typography') {
+    const { words = [], highlightWords = [], style = 'dark', accentColor = '#6C63FF', layout = 'full', fontSize = 72 } = args;
+    if (!words.length) throw new Error('words tidak boleh kosong');
+    const renderId = randomUUID();
+    const scenes = [{ type: 'kinetic_typography', words, highlightWords, style, accentColor, bgLayout: layout, fontSize, duration: Math.max(5, Math.ceil(words.length * 0.4)) }];
+    startRender(renderId, 'MultiSceneVideo', { scenes, style: 'cinematic' }, baseUrl, 3000, 5);
+    return `✅ **Kinetic Typography dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
   // check_render_status
   if (name === 'check_render_status') {
     const { renderId } = args;
@@ -437,14 +612,20 @@ async function executeTool(name, args, baseUrl) {
 
   // get_templates
   if (name === 'get_templates') {
-    return `# 🎬 Video Studio Remotion v3.0 — Template Lengkap
+    return `# 🎬 Video Studio Remotion v4.0 — Template Lengkap
 
-## 📹 Scene Types (untuk render_text_video)
+## 📹 Scene Types (untuk render_text_video — semua dalam 1 video)
 - \`title_scene\` — Judul besar dengan spring animation
 - \`text_scene\` — Teks utama + subtext dengan slide-in
 - \`lyric_scene\` — Teks lirik highlight satu per satu
 - \`tips_scene\` — Numbered list tips muncul berurutan
 - \`outro_scene\` — Penutup dengan CTA button animasi
+- \`hud_scene\` — HUD sci-fi dengan neon, grid, countdown (**v4.0**)
+- \`algorithmic_scene\` — TikTok/Spotify Wrapped style (**v4.0**)
+- \`brutalist_scene\` — Tipografi monolitik hitam-putih (**v4.0**)
+- \`sketchbook_scene\` — Gaya buku catatan tangan (**v4.0**)
+- \`whiteboard_scene\` — Whiteboard dengan sticky notes (**v4.0**)
+- \`kinetic_typography\` — Kata muncul satu per satu dramatis (**v4.0**)
 
 ## 🚀 Animasi Spesialis (tools terpisah)
 - **render_landing_page** — Landing page SaaS/produk dengan feature cards
@@ -455,6 +636,12 @@ async function executeTool(name, args, baseUrl) {
 - **render_cinematic_intro** — Intro sinematik dengan letterbox effect
 - **render_social_media** — Konten viral Instagram/TikTok dengan stats counter
 - **google_search_animation** — Animasi typewriter pencarian Google
+- **render_hud_scene** — HUD/Mission Control sci-fi (**v4.0**)
+- **render_algorithmic_scene** — TikTok/Wrapped style (**v4.0**)
+- **render_brutalist_scene** — Brutalist typography (**v4.0**)
+- **render_sketchbook_scene** — Sketchbook/handwritten (**v4.0**)
+- **render_whiteboard_scene** — Whiteboard sticky notes (**v4.0**)
+- **render_kinetic_typography** — Kinetic word-by-word (**v4.0**)
 
 ## 🎨 Style Presets
 - \`cinematic\` — Gelap, elegan, gradient hitam-biru
@@ -464,10 +651,20 @@ async function executeTool(name, args, baseUrl) {
 - \`tutorial\` — Clean, abu-abu terang
 - \`trader\` — Dark mode, hijau neon, monospace
 
+## 🎭 Layout Modes (untuk semua v4.0 scenes)
+- \`full\` — Video penuh normal
+- \`split\` — Grafis di kiri 62%, ruang webcam hijau di kanan 38%
+- \`greenscreen\` — Background hijau murni (#00FF00) untuk chroma key
+
 ## 📐 Output Quality
 - Resolusi: 1280×720 (HD)
 - Frame rate: 30 fps
-- Codec: H.264 MP4`;
+- Codec: H.264 MP4
+
+## 💡 Tips Penggunaan
+- Gunakan \`bgLayout: 'split'\` untuk video dengan webcam/face cam di kanan
+- Gunakan \`bgLayout: 'greenscreen'\` untuk background yang bisa dihapus di DaVinci/Premiere
+- Kombinasikan scene types dalam 1 video untuk hasil terbaik`;
   }
 
   throw new Error(`Tool '${name}' tidak ditemukan`);
@@ -478,7 +675,7 @@ async function executeTool(name, args, baseUrl) {
 // ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok', engine: 'Remotion 4.0', version: '3.0.0',
+    status: 'ok', engine: 'Remotion 4.0', version: '4.0.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
@@ -488,7 +685,7 @@ app.get('/health', (req, res) => {
 
 app.get('/templates', (req, res) => {
   res.json({
-    version: '3.0.0',
+    version: '4.0.0',
     sceneTypes: [
       { id: 'title_scene', name: 'Title Scene' },
       { id: 'text_scene', name: 'Text Scene' },
@@ -619,7 +816,7 @@ app.post('/mcp', async (req, res) => {
           jsonrpc: '2.0', id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'video-studio-remotion', version: '3.0.0' },
+            serverInfo: { name: 'video-studio-remotion', version: '4.0.0' },
             capabilities: { tools: {} },
           },
         });
