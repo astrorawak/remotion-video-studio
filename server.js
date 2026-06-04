@@ -95,7 +95,7 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
 }
 
 // ─────────────────────────────────────────────
-// MCP Tools Definition (v4.0 - 17 tools)
+// MCP Tools Definition (v5.1 - 22 tools)
 // ─────────────────────────────────────────────
 const MCP_TOOLS = [
   {
@@ -507,6 +507,20 @@ const MCP_TOOLS = [
     },
   },
   {
+    name: 'analyze_video_and_generate',
+    description: 'Analisis video presentasi/penjelasan dari URL dan otomatis generate animasi pendukung yang relevan. Upload video Anda ke cloud storage (Google Drive, Dropbox, dll) dan berikan URL-nya. Sistem akan: (1) transkripsi isi bicara, (2) analisis poin-poin utama, (3) generate animasi pendukung otomatis.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        videoUrl: { type: 'string', description: 'URL langsung ke file video (MP4, WebM). Harus bisa diakses publik.' },
+        language: { type: 'string', description: 'Bahasa video: id (Indonesia), en (English). Default: id' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'], description: 'Layout animasi yang dihasilkan. Default: full' },
+        style: { type: 'string', enum: ['cinematic', 'vlog', 'business', 'tutorial'], description: 'Gaya visual animasi. Default: cinematic' },
+      },
+      required: ['videoUrl'],
+    },
+  },
+  {
     name: 'check_render_status',
     description: 'Cek status render video. Gunakan renderId dari hasil render sebelumnya. Jika status "done", berikan link download kepada pengguna.',
     inputSchema: {
@@ -687,19 +701,167 @@ async function executeTool(name, args, baseUrl) {
     return `✅ **YouTube Subscribe Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
 
+  // analyze_video_and_generate
+  if (name === 'analyze_video_and_generate') {
+    const { videoUrl, language = 'id', layout = 'full', style = 'cinematic' } = args;
+    if (!videoUrl) throw new Error('videoUrl diperlukan');
+
+    const analysisId = randomUUID();
+    renderJobs[analysisId] = { status: 'processing', progress: 5, message: 'Mentranskripsi video...' };
+
+    // Run analysis async
+    (async () => {
+      try {
+        // Step 1: Transcribe via Whisper API
+        renderJobs[analysisId].progress = 10;
+        renderJobs[analysisId].message = 'Mentranskripsi audio...';
+
+        const FormData = require('form-data');
+        const axios = require('axios');
+        const https = require('https');
+        const os = require('os');
+        const tmpPath = path.join(os.tmpdir(), `${analysisId}.mp4`);
+
+        // Download video to temp file
+        await new Promise((resolve, reject) => {
+          const file = fs.createWriteStream(tmpPath);
+          https.get(videoUrl, (response) => {
+            response.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+          }).on('error', reject);
+        });
+
+        renderJobs[analysisId].progress = 25;
+        renderJobs[analysisId].message = 'Menganalisis konten...';
+
+        // Transcribe with Whisper
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(tmpPath), { filename: 'video.mp4', contentType: 'video/mp4' });
+        formData.append('model', 'whisper-1');
+        formData.append('language', language);
+        formData.append('response_format', 'verbose_json');
+
+        const whisperResp = await axios.post(
+          'https://api.openai.com/v1/audio/transcriptions',
+          formData,
+          { headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, maxBodyLength: Infinity }
+        );
+
+        const transcript = whisperResp.data.text || '';
+        fs.unlinkSync(tmpPath); // cleanup
+
+        renderJobs[analysisId].progress = 45;
+        renderJobs[analysisId].message = 'Membuat rencana animasi...';
+
+        // Step 2: Analyze with GPT-4 to generate animation plan
+        const systemPrompt = `Kamu adalah AI video editor profesional yang menganalisis transkrip presentasi dan menghasilkan rencana animasi pendukung menggunakan Remotion.
+
+Berdasarkan transkrip, buat MAKSIMAL 5 animasi pendukung yang paling relevan dari daftar berikut:
+- title_scene: judul/topik utama
+- text_scene: poin narasi penting
+- tips_scene: daftar tips/langkah (jika ada)
+- data_chart: data numerik yang disebutkan (jika ada)
+- kinetic_typography: quote atau kalimat impactful
+- whiteboard_scene: agenda/rencana/poin-poin
+- google_search: topik yang bisa jadi hook pencarian
+
+Respond HANYA dengan JSON array seperti ini:
+[
+  {
+    "type": "title_scene",
+    "text": "...",
+    "subtext": "...",
+    "duration": 4,
+    "reason": "Mengapa animasi ini relevan"
+  }
+]`;
+
+        const gptResp = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Transkrip presentasi:\n\n${transcript.substring(0, 4000)}` }
+            ],
+            response_format: { type: 'json_object' },
+            max_tokens: 2000,
+          },
+          { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
+        );
+
+        let animationPlan;
+        try {
+          const parsed = JSON.parse(gptResp.data.choices[0].message.content);
+          animationPlan = Array.isArray(parsed) ? parsed : (parsed.animations || parsed.scenes || []);
+        } catch { animationPlan = []; }
+
+        renderJobs[analysisId].progress = 60;
+        renderJobs[analysisId].message = `Merender ${animationPlan.length} animasi...`;
+
+        // Step 3: Render all animations
+        const renderResults = [];
+        for (let i = 0; i < animationPlan.length; i++) {
+          const scene = animationPlan[i];
+          const renderId = randomUUID();
+          const scenes = [{ ...scene, bgLayout: layout }];
+          startRender(renderId, 'MultiSceneVideo', { scenes, style }, baseUrl, 3000, 5);
+          renderResults.push({
+            index: i + 1,
+            type: scene.type,
+            text: scene.text,
+            reason: scene.reason || '',
+            renderId,
+            statusUrl: `${baseUrl}/status/${renderId}`,
+            downloadUrl: `${baseUrl}/download/${renderId}`,
+          });
+          renderJobs[analysisId].progress = 60 + Math.round((i + 1) / animationPlan.length * 35);
+        }
+
+        renderJobs[analysisId] = {
+          status: 'done',
+          progress: 100,
+          message: 'Analisis selesai!',
+          transcript: transcript.substring(0, 500) + (transcript.length > 500 ? '...' : ''),
+          animationCount: renderResults.length,
+          animations: renderResults,
+        };
+
+      } catch (err) {
+        console.error('[Analyze] Error:', err.message);
+        renderJobs[analysisId] = { status: 'error', progress: 0, error: err.message };
+      }
+    })();
+
+    return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 1-3 menit (transkripsi + analisis + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
+  }
+
   // check_render_status
   if (name === 'check_render_status') {
     const { renderId } = args;
     const job = renderJobs[renderId];
     if (!job) return `❌ Render job \`${renderId}\` tidak ditemukan.`;
     if (job.status === 'processing') return `⏳ **Sedang diproses... ${job.progress}%**\n\n${job.message}\n\nCek lagi dalam 10-15 detik.`;
+    if (job.status === 'done' && job.animations) {
+      // Analysis job result
+      let result = `✅ **Analisis selesai! ${job.animationCount} animasi dibuat**\n\n`;
+      result += `📝 **Transkrip (preview)**: ${job.transcript}\n\n`;
+      result += `🎬 **Animasi yang dihasilkan:**\n\n`;
+      for (const anim of job.animations) {
+        result += `**${anim.index}. ${anim.type}** — "${anim.text}"\n`;
+        result += `   💡 ${anim.reason}\n`;
+        result += `   📥 Download: ${anim.downloadUrl}\n`;
+        result += `   ⏳ Status: gunakan check_render_status dengan ID \`${anim.renderId}\`\n\n`;
+      }
+      return result;
+    }
     if (job.status === 'done') return `✅ **Video selesai!**\n\n📥 **Link Download**: ${job.downloadUrl}\n📦 Ukuran: ${(job.fileSize / 1024).toFixed(1)} KB\n\nKlik link untuk mendownload video MP4.`;
     return `❌ **Error**: ${job.error}`;
   }
 
   // get_templates
   if (name === 'get_templates') {
-    return `# 🎬 Video Studio Remotion v4.0 — Template Lengkap
+    return `# 🎬 Video Studio Remotion v5.1 — Template Lengkap
 
 ## 📹 Scene Types (untuk render_text_video — semua dalam 1 video)
 - \`title_scene\` — Judul besar dengan spring animation
@@ -733,6 +895,7 @@ async function executeTool(name, args, baseUrl) {
 - **render_vhs_timeline** — Timeline retro VHS/glitch (**v5.0**)
 - **render_macos_dock** — macOS dock dengan hover effect (**v5.0**)
 - **render_youtube_subscribe** — Counter subscriber + confetti (**v5.0**)
+- **analyze_video_and_generate** — Upload URL video presentasi → transkripsi otomatis → generate animasi pendukung (**v5.1**)
 
 ## 🎨 Style Presets
 - \`cinematic\` — Gelap, elegan, gradient hitam-biru
@@ -766,7 +929,7 @@ async function executeTool(name, args, baseUrl) {
 // ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok', engine: 'Remotion 4.0', version: '4.0.0',
+    status: 'ok', engine: 'Remotion 4.0', version: '5.1.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
@@ -876,6 +1039,19 @@ app.post('/render-social-media', async (req, res) => {
   startRender(renderId, 'SocialMediaVideo', req.body, baseUrl, 2500, 6);
 });
 
+// REST endpoint for analyze-video
+app.post('/analyze-video', async (req, res) => {
+  const baseUrl = getBaseUrl(req);
+  const { videoUrl, language = 'id', layout = 'full', style = 'cinematic' } = req.body;
+  if (!videoUrl) return res.status(400).json({ error: 'videoUrl diperlukan' });
+  try {
+    const result = await executeTool('analyze_video_and_generate', { videoUrl, language, layout, style }, baseUrl);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─────────────────────────────────────────────
 // Remote MCP — Streamable HTTP
 // ─────────────────────────────────────────────
@@ -907,7 +1083,7 @@ app.post('/mcp', async (req, res) => {
           jsonrpc: '2.0', id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'video-studio-remotion', version: '4.0.0' },
+            serverInfo: { name: 'video-studio-remotion', version: '5.1.0' },
             capabilities: { tools: {} },
           },
         });
