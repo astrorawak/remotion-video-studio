@@ -322,12 +322,26 @@ app.post('/render-text-video', async (req, res) => {
   renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render...' };
   res.json({ renderId, statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
   const { scenes = [], style = 'cinematic' } = req.body;
+  // Progress timer agar tidak stuck di 0%
+  renderJobs[renderId].progress = 10;
+  renderJobs[renderId].message = 'Menyiapkan komposisi Remotion...';
+  const progressTimer = setInterval(() => {
+    const job = renderJobs[renderId];
+    if (job && job.status === 'processing' && job.progress < 85) {
+      job.progress = Math.min(85, job.progress + 5);
+      job.message = `Merender frame video... (${job.progress}%)`;
+    } else {
+      clearInterval(progressTimer);
+    }
+  }, 3000);
   try {
     const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
     await renderVideo('MultiSceneVideo', { scenes, style }, outputPath);
+    clearInterval(progressTimer);
     const stats = fs.statSync(outputPath);
     renderJobs[renderId] = { status: 'done', progress: 100, downloadUrl: `${baseUrl}/download/${renderId}`, fileSize: stats.size, message: 'Video berhasil dirender!' };
   } catch (err) {
+    clearInterval(progressTimer);
     renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
   }
 });
@@ -338,12 +352,26 @@ app.post('/google-search-animation', async (req, res) => {
   renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render Google Search...' };
   res.json({ renderId, statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
   const { searchQuery, results = [], style = 'light' } = req.body;
+  // Progress timer agar tidak stuck di 0%
+  renderJobs[renderId].progress = 10;
+  renderJobs[renderId].message = 'Menyiapkan animasi Google Search...';
+  const progressTimer2 = setInterval(() => {
+    const job = renderJobs[renderId];
+    if (job && job.status === 'processing' && job.progress < 85) {
+      job.progress = Math.min(85, job.progress + 8);
+      job.message = `Merender animasi... (${job.progress}%)`;
+    } else {
+      clearInterval(progressTimer2);
+    }
+  }, 2000);
   try {
     const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
     await renderVideo('GoogleSearchVideo', { searchQuery, results, style }, outputPath);
+    clearInterval(progressTimer2);
     const stats = fs.statSync(outputPath);
     renderJobs[renderId] = { status: 'done', progress: 100, downloadUrl: `${baseUrl}/download/${renderId}`, fileSize: stats.size, message: 'Animasi Google Search berhasil!' };
   } catch (err) {
+    clearInterval(progressTimer2);
     renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
   }
 });
