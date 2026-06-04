@@ -449,6 +449,64 @@ const MCP_TOOLS = [
     },
   },
   {
+    name: 'render_comment_explosion',
+    description: 'Buat animasi komentar yang bermunculan (comment explosion) dari berbagai posisi layar. Cocok untuk showcase testimoni, review produk, atau reaksi penonton.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        comments: { type: 'array', items: { type: 'object', properties: { username: { type: 'string' }, text: { type: 'string' }, color: { type: 'string' } }, required: ['username', 'text'] }, description: 'Array komentar (username + text). Kosongkan untuk contoh default.' },
+        title: { type: 'string', description: 'Judul di bagian atas (default: Apa Kata Mereka?)' },
+        bgColor: { type: 'string', description: 'Warna background (hex, default: #0A0A14)' },
+        accentColor: { type: 'string', description: 'Warna aksen (hex, default: #6C63FF)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+    },
+  },
+  {
+    name: 'render_vhs_timeline',
+    description: 'Buat animasi timeline bergaya VHS/retro dengan efek glitch, scanlines, dan timecode. Cocok untuk perjalanan bisnis, milestone, atau sejarah brand.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        events: { type: 'array', items: { type: 'object', properties: { year: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' } }, required: ['year', 'title'] }, description: 'Array event timeline (year + title + description)' },
+        title: { type: 'string', description: 'Judul timeline (default: PERJALANAN KAMI)' },
+        accentColor: { type: 'string', description: 'Warna aksen neon (hex, default: #00FF41 hijau)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+    },
+  },
+  {
+    name: 'render_macos_dock',
+    description: 'Buat animasi macOS-style dock dengan icon aplikasi yang muncul satu per satu dan efek hover magnification. Cocok untuk showcase tools, stack teknologi, atau rekomendasi aplikasi.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        apps: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, emoji: { type: 'string' }, color: { type: 'string' }, badge: { type: 'number' } }, required: ['name', 'emoji', 'color'] }, description: 'Array aplikasi (name, emoji, color hex, badge opsional)' },
+        title: { type: 'string', description: 'Judul di atas dock' },
+        subtitle: { type: 'string', description: 'Subjudul di bawah title' },
+        bgStyle: { type: 'string', enum: ['dark', 'light', 'gradient'], description: 'Gaya background' },
+        accentColor: { type: 'string', description: 'Warna aksen (hex)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+    },
+  },
+  {
+    name: 'render_youtube_subscribe',
+    description: 'Buat animasi YouTube subscribe dengan counter subscriber yang menghitung naik dan efek confetti saat mencapai milestone. Cocok untuk milestone celebration atau CTA subscribe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channelName: { type: 'string', description: 'Nama channel YouTube' },
+        targetSubscribers: { type: 'number', description: 'Target subscriber yang ditampilkan (default: 100000)' },
+        startSubscribers: { type: 'number', description: 'Angka awal counter (default: 0)' },
+        milestone: { type: 'string', description: 'Teks milestone yang muncul (default: 100K SUBSCRIBERS!)' },
+        accentColor: { type: 'string', description: 'Warna aksen/tombol subscribe (default: #FF0000)' },
+        bgColor: { type: 'string', description: 'Warna background (default: #0F0F0F)' },
+        layout: { type: 'string', enum: ['full', 'split', 'greenscreen'] },
+      },
+    },
+  },
+  {
     name: 'check_render_status',
     description: 'Cek status render video. Gunakan renderId dari hasil render sebelumnya. Jika status "done", berikan link download kepada pengguna.',
     inputSchema: {
@@ -461,7 +519,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'get_templates',
-    description: 'Dapatkan daftar semua template, gaya visual, dan animasi yang tersedia di Video Studio v3.0.',
+    description: 'Dapatkan daftar semua template, gaya visual, dan animasi yang tersedia di Video Studio v5.0.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];
@@ -600,6 +658,35 @@ async function executeTool(name, args, baseUrl) {
     return `✅ **Kinetic Typography dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
 
+  // v5.0 tools
+  if (name === 'render_comment_explosion') {
+    const { comments = [], title = 'Apa Kata Mereka?', bgColor = '#0A0A14', accentColor = '#6C63FF', layout = 'full' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'CommentExplosionVideo', { comments, title, bgColor, accentColor, layout }, baseUrl, 2500, 6);
+    return `✅ **Comment Explosion dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_vhs_timeline') {
+    const { events = [], title = 'PERJALANAN KAMI', accentColor = '#00FF41', layout = 'full' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'VHSTimelineVideo', { events, title, accentColor, layout }, baseUrl, 3000, 5);
+    return `✅ **VHS Timeline dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_macos_dock') {
+    const { apps = [], title = 'Tools yang Saya Gunakan', subtitle = 'Stack lengkap untuk kreator modern', bgStyle = 'dark', accentColor = '#007AFF', layout = 'full' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'MacOSDockVideo', { apps, title, subtitle, bgStyle, accentColor, layout }, baseUrl, 2500, 6);
+    return `✅ **macOS Dock Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_youtube_subscribe') {
+    const { channelName = 'Channel Kamu', targetSubscribers = 100000, startSubscribers = 0, milestone = '100K SUBSCRIBERS!', accentColor = '#FF0000', bgColor = '#0F0F0F', layout = 'full' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'YouTubeSubscribeVideo', { channelName, targetSubscribers, startSubscribers, milestone, accentColor, bgColor, layout }, baseUrl, 2500, 6);
+    return `✅ **YouTube Subscribe Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
   // check_render_status
   if (name === 'check_render_status') {
     const { renderId } = args;
@@ -642,6 +729,10 @@ async function executeTool(name, args, baseUrl) {
 - **render_sketchbook_scene** — Sketchbook/handwritten (**v4.0**)
 - **render_whiteboard_scene** — Whiteboard sticky notes (**v4.0**)
 - **render_kinetic_typography** — Kinetic word-by-word (**v4.0**)
+- **render_comment_explosion** — Komentar bermunculan viral (**v5.0**)
+- **render_vhs_timeline** — Timeline retro VHS/glitch (**v5.0**)
+- **render_macos_dock** — macOS dock dengan hover effect (**v5.0**)
+- **render_youtube_subscribe** — Counter subscriber + confetti (**v5.0**)
 
 ## 🎨 Style Presets
 - \`cinematic\` — Gelap, elegan, gradient hitam-biru

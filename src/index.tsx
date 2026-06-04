@@ -19,6 +19,10 @@ import { BrutalistScene } from './compositions/BrutalistScene';
 import { SketchbookScene } from './compositions/SketchbookScene';
 import { WhiteboardScene } from './compositions/WhiteboardScene';
 import { KineticTypographyScene } from './compositions/KineticTypographyScene';
+import { CommentExplosionScene } from './compositions/CommentExplosionScene';
+import { VHSTimelineScene } from './compositions/VHSTimelineScene';
+import { MacOSDockScene } from './compositions/MacOSDockScene';
+import { YouTubeSubscribeScene } from './compositions/YouTubeSubscribeScene';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -65,6 +69,17 @@ interface SceneData {
   title?: string;
   subtitle?: string;
   appName?: string;
+  // v5.0 fields
+  comments?: { username: string; text: string; color?: string }[];
+  events?: { year: string; title: string; description?: string }[];
+  apps?: { name: string; emoji: string; color: string; badge?: number }[];
+  bgStyle?: string;
+  channelName?: string;
+  targetSubscribers?: number;
+  startSubscribers?: number;
+  milestone?: string;
+  body?: string;
+  fontSize?: number;
 }
 
 interface MultiSceneVideoProps {
@@ -231,6 +246,50 @@ const SceneRenderer: React.FC<{ scene: SceneData; style: string }> = ({ scene, s
           accentColor={scene.accentColor || scene.primaryColor || '#6C63FF'}
           layout={scene.bgLayout || 'full'}
           fontSize={scene.fontSize as any || 72}
+        />
+      );
+
+    // v5.0 scenes
+    case 'comment_explosion':
+      return (
+        <CommentExplosionScene
+          comments={scene.comments as any || []}
+          title={scene.title || scene.text || 'Apa Kata Mereka?'}
+          bgColor={scene.bgColor || '#0A0A14'}
+          accentColor={scene.accentColor || scene.primaryColor || '#6C63FF'}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+    case 'vhs_timeline':
+      return (
+        <VHSTimelineScene
+          events={scene.events as any || []}
+          title={scene.title || scene.text || 'PERJALANAN KAMI'}
+          accentColor={scene.accentColor || scene.primaryColor || '#00FF41'}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+    case 'macos_dock':
+      return (
+        <MacOSDockScene
+          apps={scene.apps as any || []}
+          title={scene.title || scene.text || 'Tools yang Saya Gunakan'}
+          subtitle={scene.subtitle || scene.subtext || 'Stack lengkap untuk kreator modern'}
+          bgStyle={scene.bgStyle as any || 'dark'}
+          accentColor={scene.accentColor || scene.primaryColor || '#007AFF'}
+          layout={scene.bgLayout || 'full'}
+        />
+      );
+    case 'youtube_subscribe':
+      return (
+        <YouTubeSubscribeScene
+          channelName={scene.channelName || scene.title || scene.text || 'Channel Kamu'}
+          targetSubscribers={scene.targetSubscribers || 100000}
+          startSubscribers={scene.startSubscribers || 0}
+          milestone={scene.milestone || '100K SUBSCRIBERS!'}
+          accentColor={scene.accentColor || scene.primaryColor || '#FF0000'}
+          bgColor={scene.bgColor || '#0F0F0F'}
+          layout={scene.bgLayout || 'full'}
         />
       );
 
@@ -440,6 +499,76 @@ export const RemotionRoot: React.FC = () => {
           ],
           bgGradient: ['#667EEA', '#764BA2'] as [string, string],
           username: '@creator',
+        }}
+      />
+
+      {/* v5.0 Compositions */}
+      <Composition
+        id="CommentExplosionVideo"
+        component={CommentExplosionScene}
+        durationInFrames={240}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          comments: [],
+          title: 'Apa Kata Mereka?',
+          bgColor: '#0A0A14',
+          accentColor: '#6C63FF',
+          layout: 'full' as const,
+        }}
+      />
+
+      <Composition
+        id="VHSTimelineVideo"
+        component={VHSTimelineScene}
+        durationInFrames={300}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          events: [],
+          title: 'PERJALANAN KAMI',
+          accentColor: '#00FF41',
+          layout: 'full' as const,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.max(150, (props.events?.length || 5) * 40 + 60),
+        })}
+      />
+
+      <Composition
+        id="MacOSDockVideo"
+        component={MacOSDockScene}
+        durationInFrames={270}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          apps: [],
+          title: 'Tools yang Saya Gunakan',
+          subtitle: 'Stack lengkap untuk kreator modern',
+          bgStyle: 'dark' as const,
+          accentColor: '#007AFF',
+          layout: 'full' as const,
+        }}
+      />
+
+      <Composition
+        id="YouTubeSubscribeVideo"
+        component={YouTubeSubscribeScene}
+        durationInFrames={240}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          channelName: 'Channel Kamu',
+          targetSubscribers: 100000,
+          startSubscribers: 0,
+          milestone: '100K SUBSCRIBERS!',
+          accentColor: '#FF0000',
+          bgColor: '#0F0F0F',
+          layout: 'full' as const,
         }}
       />
     </>
