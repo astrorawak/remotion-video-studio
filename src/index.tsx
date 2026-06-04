@@ -1,5 +1,5 @@
 import React from 'react';
-import { Composition, Series } from 'remotion';
+import { Composition, Series, registerRoot } from 'remotion';
 import { TitleScene } from './compositions/TitleScene';
 import { TextScene } from './compositions/TextScene';
 import { TipsScene } from './compositions/TipsScene';
@@ -127,3 +127,6 @@ export const RemotionRoot: React.FC = () => {
     </>
   );
 };
+
+// WAJIB: registerRoot agar Remotion mengenali entry point ini
+registerRoot(RemotionRoot);
