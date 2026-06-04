@@ -880,7 +880,7 @@ async function executeTool(name, args, baseUrl) {
 // ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok', engine: 'Remotion 4.0', version: '5.1.0',
+    status: 'ok', engine: 'Remotion 4.0', version: '5.2.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
@@ -1034,7 +1034,7 @@ app.post('/mcp', async (req, res) => {
           jsonrpc: '2.0', id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'video-studio-remotion', version: '5.1.0' },
+            serverInfo: { name: 'video-studio-remotion', version: '5.2.0' },
             capabilities: { tools: {} },
           },
         });
