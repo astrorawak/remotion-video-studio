@@ -1,4 +1,4 @@
-require('dotenv').config();
+'use strict';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -6,7 +6,7 @@ const fs = require('fs');
 const { randomUUID } = require('crypto');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Mcp-Session-Id'] }));
 app.use(express.json({ limit: '10mb' }));
 
 const OUTPUT_DIR = path.join(__dirname, 'outputs');
@@ -20,7 +20,7 @@ process.on('uncaughtException', (err) => console.error('Uncaught:', err.message)
 process.on('unhandledRejection', (reason) => console.error('Rejection:', reason));
 
 // ─────────────────────────────────────────────
-// Lazy-load Remotion (heavy, only when needed)
+// Lazy-load Remotion
 // ─────────────────────────────────────────────
 let bundleLocation = null;
 let bundling = false;
@@ -73,10 +73,179 @@ async function renderVideo(compositionId, inputProps, outputPath) {
 }
 
 // ─────────────────────────────────────────────
-// Routes
+// Helper: get base URL
 // ─────────────────────────────────────────────
+function getBaseUrl(req) {
+  if (process.env.BASE_URL) return process.env.BASE_URL;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  const proto = req ? (req.headers['x-forwarded-proto'] || req.protocol) : 'http';
+  const host = req ? (req.headers['x-forwarded-host'] || req.headers.host) : `localhost:${PORT}`;
+  return `${proto}://${host}`;
+}
 
-// Health check
+// ─────────────────────────────────────────────
+// MCP Tools Definition
+// ─────────────────────────────────────────────
+const MCP_TOOLS = [
+  {
+    name: 'render_text_video',
+    description: 'Buat video animasi profesional dari teks menggunakan Remotion. Mendukung spring animation, typewriter, highlight, dan berbagai gaya visual. Setelah render selesai, berikan link download kepada pengguna.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scenes: {
+          type: 'array',
+          description: 'Array scene video. Setiap scene memiliki type, text, dan durasi.',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['title_scene', 'text_scene', 'lyric_scene', 'tips_scene', 'outro_scene'] },
+              text: { type: 'string', description: 'Teks utama scene' },
+              subtext: { type: 'string', description: 'Teks sekunder/subtitle' },
+              tips: { type: 'array', items: { type: 'string' }, description: 'List tips (untuk tips_scene)' },
+              lyrics: { type: 'array', items: { type: 'string' }, description: 'List lirik (untuk lyric_scene)' },
+              cta: { type: 'string', description: 'Call-to-action text (untuk outro_scene)' },
+              duration: { type: 'number', description: 'Durasi scene dalam detik (default: 3)' },
+            },
+            required: ['type', 'text'],
+          },
+        },
+        style: {
+          type: 'string',
+          enum: ['cinematic', 'vlog', 'business', 'music_video', 'tutorial', 'trader'],
+          description: 'Gaya visual keseluruhan video. Default: cinematic',
+        },
+      },
+      required: ['scenes'],
+    },
+  },
+  {
+    name: 'google_search_animation',
+    description: 'Buat animasi pencarian Google dengan efek typewriter yang realistis. Sangat cocok untuk hook video viral di TikTok/Reels/YouTube Shorts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        searchQuery: { type: 'string', description: 'Kata kunci pencarian yang akan diketik dengan efek typewriter' },
+        results: { type: 'array', items: { type: 'string' }, description: 'Judul hasil pencarian yang muncul (maksimal 4 item)' },
+        style: { type: 'string', enum: ['light', 'dark'], description: 'Tema tampilan Google. Default: light' },
+      },
+      required: ['searchQuery'],
+    },
+  },
+  {
+    name: 'check_render_status',
+    description: 'Cek status render video. Gunakan renderId dari hasil render sebelumnya. Jika status "done", berikan link download kepada pengguna.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        renderId: { type: 'string', description: 'ID render yang didapat dari render_text_video atau google_search_animation' },
+      },
+      required: ['renderId'],
+    },
+  },
+  {
+    name: 'get_templates',
+    description: 'Dapatkan daftar semua template scene, gaya visual, dan animasi yang tersedia di Video Studio.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+
+// ─────────────────────────────────────────────
+// MCP Tool Executor
+// ─────────────────────────────────────────────
+async function executeTool(name, args, baseUrl) {
+  if (name === 'render_text_video') {
+    const { scenes = [], style = 'cinematic' } = args;
+    if (!scenes || scenes.length === 0) throw new Error('scenes tidak boleh kosong');
+
+    const renderId = randomUUID();
+    renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render Remotion...' };
+
+    // Render async
+    (async () => {
+      try {
+        renderJobs[renderId].progress = 20;
+        renderJobs[renderId].message = 'Merender video dengan Remotion...';
+        const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
+        await renderVideo('MultiSceneVideo', { scenes, style }, outputPath);
+        const stats = fs.statSync(outputPath);
+        renderJobs[renderId] = {
+          status: 'done', progress: 100,
+          downloadUrl: `${baseUrl}/download/${renderId}`,
+          fileSize: stats.size,
+          message: 'Video berhasil dirender!',
+        };
+        console.log(`[Render] ${renderId} selesai (${(stats.size / 1024).toFixed(1)} KB)`);
+      } catch (err) {
+        console.error(`[Render] ${renderId} error:`, err.message);
+        renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
+      }
+    })();
+
+    return `✅ **Render dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi waktu: 30-90 detik\n\nGunakan tool \`check_render_status\` dengan Render ID di atas untuk memantau progres dan mendapatkan link download.`;
+  }
+
+  if (name === 'google_search_animation') {
+    const { searchQuery, results = [], style = 'light' } = args;
+    if (!searchQuery) throw new Error('searchQuery diperlukan');
+
+    const renderId = randomUUID();
+    renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render Google Search...' };
+
+    (async () => {
+      try {
+        renderJobs[renderId].progress = 20;
+        const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
+        await renderVideo('GoogleSearchVideo', { searchQuery, results, style }, outputPath);
+        const stats = fs.statSync(outputPath);
+        renderJobs[renderId] = {
+          status: 'done', progress: 100,
+          downloadUrl: `${baseUrl}/download/${renderId}`,
+          fileSize: stats.size,
+          message: 'Animasi Google Search berhasil!',
+        };
+      } catch (err) {
+        renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
+      }
+    })();
+
+    return `✅ **Animasi Google Search dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi waktu: 20-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'check_render_status') {
+    const { renderId } = args;
+    const job = renderJobs[renderId];
+    if (!job) return `❌ Render job \`${renderId}\` tidak ditemukan. Pastikan renderId benar.`;
+    if (job.status === 'processing') return `⏳ **Sedang diproses...** (${job.progress}%)\n\n${job.message || 'Mohon tunggu...'}`;
+    if (job.status === 'done') return `✅ **Video selesai!**\n\n📥 **Link Download**: ${job.downloadUrl}\n📦 Ukuran file: ${(job.fileSize / 1024).toFixed(1)} KB\n\nKlik link di atas untuk mendownload video MP4 Anda.`;
+    return `❌ **Error**: ${job.error}`;
+  }
+
+  if (name === 'get_templates') {
+    return `**🎬 Template Scene yang Tersedia:**
+- \`title_scene\`: Judul besar dengan spring animation
+- \`text_scene\`: Teks utama + subtext dengan slide-in
+- \`lyric_scene\`: Teks lirik highlight satu per satu
+- \`tips_scene\`: Numbered list tips muncul berurutan
+- \`outro_scene\`: Penutup dengan CTA button animasi
+
+**🎨 Gaya Visual:**
+- \`cinematic\`: Gelap, elegan, gradient hitam-biru
+- \`vlog\`: Cerah, casual, putih bersih
+- \`business\`: Profesional, biru tua
+- \`music_video\`: Bold, hitam-emas dramatis
+- \`tutorial\`: Clean, abu-abu terang
+- \`trader\`: Dark mode, hijau neon, monospace
+
+**📐 Kualitas Output:** 1280x720 @ 30fps (H.264 MP4)`;
+  }
+
+  throw new Error(`Tool '${name}' tidak ditemukan`);
+}
+
+// ─────────────────────────────────────────────
+// Routes: Health, Templates, Status, Download
+// ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -84,10 +253,10 @@ app.get('/health', (req, res) => {
     version: '2.0.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
+    mcpEndpoint: `${getBaseUrl(req)}/mcp`,
   });
 });
 
-// Templates
 app.get('/templates', (req, res) => {
   res.json({
     sceneTypes: [
@@ -106,19 +275,16 @@ app.get('/templates', (req, res) => {
       { id: 'tutorial', name: 'Tutorial', desc: 'Clean, abu-abu terang' },
       { id: 'trader', name: 'Trader', desc: 'Dark mode, hijau neon, monospace' },
     ],
-    animations: ['spring', 'slideIn', 'fadeIn', 'typewriter', 'highlight', 'bounce'],
     quality: { resolution: '1280x720', fps: 30, codec: 'h264' },
   });
 });
 
-// Status
 app.get('/status/:renderId', (req, res) => {
   const job = renderJobs[req.params.renderId];
   if (!job) return res.status(404).json({ error: 'Render job tidak ditemukan' });
   res.json(job);
 });
 
-// Download
 app.get('/download/:renderId', (req, res) => {
   const filePath = path.join(OUTPUT_DIR, `${req.params.renderId}.mp4`);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File tidak ditemukan' });
@@ -127,204 +293,144 @@ app.get('/download/:renderId', (req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-// ─────────────────────────────────────────────
-// POST /render-text-video
-// ─────────────────────────────────────────────
+// REST endpoints (backward compat)
 app.post('/render-text-video', async (req, res) => {
+  const baseUrl = getBaseUrl(req);
   const renderId = randomUUID();
   renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render...' };
-  const baseUrl = process.env.BASE_URL || `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` || `http://localhost:${PORT}`;
-  res.json({ renderId, message: 'Render dimulai', statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
-
+  res.json({ renderId, statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
+  const { scenes = [], style = 'cinematic' } = req.body;
   try {
-    const { scenes = [], style = 'cinematic' } = req.body;
-    if (!scenes || scenes.length === 0) throw new Error('scenes tidak boleh kosong');
-
-    renderJobs[renderId].message = 'Menyiapkan Remotion bundle...';
-    renderJobs[renderId].progress = 10;
-
     const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
-    renderJobs[renderId].progress = 20;
-    renderJobs[renderId].message = 'Merender video...';
-
     await renderVideo('MultiSceneVideo', { scenes, style }, outputPath);
-
     const stats = fs.statSync(outputPath);
-    renderJobs[renderId] = {
-      status: 'done', progress: 100,
-      downloadUrl: `${baseUrl}/download/${renderId}`,
-      fileSize: stats.size,
-      message: 'Video berhasil dirender!',
-    };
-    console.log(`[Render] ${renderId} selesai (${(stats.size / 1024).toFixed(1)} KB)`);
+    renderJobs[renderId] = { status: 'done', progress: 100, downloadUrl: `${baseUrl}/download/${renderId}`, fileSize: stats.size, message: 'Video berhasil dirender!' };
   } catch (err) {
-    console.error(`[Render] ${renderId} error:`, err.message);
     renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
   }
 });
 
-// ─────────────────────────────────────────────
-// POST /google-search-animation
-// ─────────────────────────────────────────────
 app.post('/google-search-animation', async (req, res) => {
+  const baseUrl = getBaseUrl(req);
   const renderId = randomUUID();
   renderJobs[renderId] = { status: 'processing', progress: 0, message: 'Memulai render Google Search...' };
-  const baseUrl = process.env.BASE_URL || `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` || `http://localhost:${PORT}`;
-  res.json({ renderId, message: 'Render dimulai', statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
-
+  res.json({ renderId, statusUrl: `${baseUrl}/status/${renderId}`, downloadUrl: `${baseUrl}/download/${renderId}` });
+  const { searchQuery, results = [], style = 'light' } = req.body;
   try {
-    const { searchQuery, results = [], style = 'light' } = req.body;
-    if (!searchQuery) throw new Error('searchQuery diperlukan');
-
-    renderJobs[renderId].progress = 20;
-    renderJobs[renderId].message = 'Merender animasi Google Search...';
-
     const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
     await renderVideo('GoogleSearchVideo', { searchQuery, results, style }, outputPath);
-
     const stats = fs.statSync(outputPath);
-    renderJobs[renderId] = {
-      status: 'done', progress: 100,
-      downloadUrl: `${baseUrl}/download/${renderId}`,
-      fileSize: stats.size,
-      message: 'Animasi Google Search berhasil!',
-    };
+    renderJobs[renderId] = { status: 'done', progress: 100, downloadUrl: `${baseUrl}/download/${renderId}`, fileSize: stats.size, message: 'Animasi Google Search berhasil!' };
   } catch (err) {
-    console.error(`[GoogleSearch] ${renderId} error:`, err.message);
     renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
   }
 });
 
 // ─────────────────────────────────────────────
-// MCP Endpoint (JSON-RPC 2.0)
+// Remote MCP — Streamable HTTP (claude.ai compatible)
+// Spec: https://modelcontextprotocol.io/specification/2025-03-26/basic/transports
 // ─────────────────────────────────────────────
+const mcpSessions = {};
+
+// MCP endpoint: POST untuk semua request, GET untuk SSE stream
+app.get('/mcp', (req, res) => {
+  // SSE stream untuk notifikasi server-to-client
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  const sessionId = randomUUID();
+  mcpSessions[sessionId] = res;
+  res.setHeader('Mcp-Session-Id', sessionId);
+
+  // Send endpoint event
+  res.write(`event: endpoint\ndata: ${JSON.stringify({ uri: `/mcp?sessionId=${sessionId}` })}\n\n`);
+
+  req.on('close', () => {
+    delete mcpSessions[sessionId];
+  });
+});
+
 app.post('/mcp', async (req, res) => {
-  const { method, params, id } = req.body;
-  const baseUrl = process.env.BASE_URL || `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` || `http://localhost:${PORT}`;
+  const baseUrl = getBaseUrl(req);
+  const body = req.body;
 
-  if (method === 'initialize') {
-    return res.json({
-      jsonrpc: '2.0', id,
-      result: {
-        protocolVersion: '2024-11-05',
-        serverInfo: { name: 'video-studio-remotion', version: '2.0.0' },
-        capabilities: { tools: {} },
-      },
-    });
-  }
+  // Handle batch requests
+  const requests = Array.isArray(body) ? body : [body];
+  const responses = [];
 
-  if (method === 'tools/list') {
-    return res.json({
-      jsonrpc: '2.0', id,
-      result: {
-        tools: [
-          {
-            name: 'render_text_video',
-            description: 'Buat video animasi profesional dari teks menggunakan Remotion. Mendukung spring animation, typewriter, highlight, dan berbagai gaya visual.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                scenes: {
-                  type: 'array',
-                  description: 'Array scene. Setiap scene memiliki type, text, dan durasi.',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      type: { type: 'string', enum: ['title_scene', 'text_scene', 'lyric_scene', 'tips_scene', 'outro_scene', 'google_search'] },
-                      text: { type: 'string' },
-                      subtext: { type: 'string' },
-                      tips: { type: 'array', items: { type: 'string' } },
-                      lyrics: { type: 'array', items: { type: 'string' } },
-                      cta: { type: 'string' },
-                      duration: { type: 'number', description: 'Durasi scene dalam detik (default: 3)' },
-                    },
-                    required: ['type', 'text'],
-                  },
-                },
-                style: { type: 'string', enum: ['cinematic', 'vlog', 'business', 'music_video', 'tutorial', 'trader'], description: 'Gaya visual keseluruhan video' },
-              },
-              required: ['scenes'],
-            },
-          },
-          {
-            name: 'google_search_animation',
-            description: 'Buat animasi pencarian Google dengan efek typewriter yang realistis. Cocok untuk hook video viral.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                searchQuery: { type: 'string', description: 'Kata kunci pencarian yang akan diketik' },
-                results: { type: 'array', items: { type: 'string' }, description: 'Judul hasil pencarian (maks 4)' },
-                style: { type: 'string', enum: ['light', 'dark'], description: 'Tema tampilan Google (default: light)' },
-              },
-              required: ['searchQuery'],
-            },
-          },
-          {
-            name: 'get_templates',
-            description: 'Dapatkan daftar semua template scene, gaya visual, dan animasi yang tersedia.',
-            inputSchema: { type: 'object', properties: {} },
-          },
-          {
-            name: 'check_render_status',
-            description: 'Cek status render video. Gunakan renderId dari hasil render sebelumnya.',
-            inputSchema: {
-              type: 'object',
-              properties: { renderId: { type: 'string' } },
-              required: ['renderId'],
-            },
-          },
-        ],
-      },
-    });
-  }
+  for (const request of requests) {
+    const { method, params, id } = request;
 
-  if (method === 'tools/call') {
-    const { name, arguments: args } = params;
     try {
-      if (name === 'render_text_video') {
-        const axios = require('axios');
-        const resp = await axios.post(`${baseUrl}/render-text-video`, args, { timeout: 10000 });
-        return res.json({
+      if (method === 'initialize') {
+        responses.push({
           jsonrpc: '2.0', id,
-          result: { content: [{ type: 'text', text: `✅ Render dimulai!\n\n**renderId**: \`${resp.data.renderId}\`\n**Status**: ${resp.data.statusUrl}\n**Download**: ${resp.data.downloadUrl}\n\nGunakan tool \`check_render_status\` dengan renderId di atas untuk memantau progres. Render biasanya selesai dalam 30-90 detik.` }] },
+          result: {
+            protocolVersion: '2024-11-05',
+            serverInfo: { name: 'video-studio-remotion', version: '2.0.0' },
+            capabilities: { tools: {} },
+          },
         });
+        continue;
       }
 
-      if (name === 'google_search_animation') {
-        const axios = require('axios');
-        const resp = await axios.post(`${baseUrl}/google-search-animation`, args, { timeout: 10000 });
-        return res.json({
+      if (method === 'notifications/initialized') {
+        // No response needed for notifications
+        continue;
+      }
+
+      if (method === 'ping') {
+        responses.push({ jsonrpc: '2.0', id, result: {} });
+        continue;
+      }
+
+      if (method === 'tools/list') {
+        responses.push({
           jsonrpc: '2.0', id,
-          result: { content: [{ type: 'text', text: `✅ Animasi Google Search dimulai!\n\n**renderId**: \`${resp.data.renderId}\`\n**Status**: ${resp.data.statusUrl}\n**Download**: ${resp.data.downloadUrl}\n\nGunakan \`check_render_status\` untuk memantau progres.` }] },
+          result: { tools: MCP_TOOLS },
         });
+        continue;
       }
 
-      if (name === 'get_templates') {
-        const axios = require('axios');
-        const resp = await axios.get(`${baseUrl}/templates`);
-        const t = resp.data;
-        const text = `**Template Scene yang Tersedia:**\n${t.sceneTypes.map((s) => `- \`${s.id}\`: ${s.desc}`).join('\n')}\n\n**Gaya Visual:**\n${t.stylePresets.map((s) => `- \`${s.id}\`: ${s.desc}`).join('\n')}\n\n**Kualitas Output:** ${t.quality.resolution} @ ${t.quality.fps}fps (${t.quality.codec})`;
-        return res.json({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
+      if (method === 'tools/call') {
+        const { name, arguments: args } = params;
+        const text = await executeTool(name, args || {}, baseUrl);
+        responses.push({
+          jsonrpc: '2.0', id,
+          result: { content: [{ type: 'text', text }] },
+        });
+        continue;
       }
 
-      if (name === 'check_render_status') {
-        const { renderId } = args;
-        const job = renderJobs[renderId];
-        if (!job) return res.json({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: `❌ Render job \`${renderId}\` tidak ditemukan.` }] } });
-        let text = `**Status Render** \`${renderId}\`\n\n`;
-        if (job.status === 'processing') text += `⏳ **Sedang diproses...** (${job.progress}%)\n${job.message || ''}`;
-        else if (job.status === 'done') text += `✅ **Selesai!**\n\n📥 **Download**: ${job.downloadUrl}\n📦 Ukuran: ${(job.fileSize / 1024).toFixed(1)} KB`;
-        else text += `❌ **Error**: ${job.error}`;
-        return res.json({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
-      }
-
-      return res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: `Tool '${name}' tidak ditemukan` } });
+      responses.push({
+        jsonrpc: '2.0', id,
+        error: { code: -32601, message: `Method '${method}' tidak dikenal` },
+      });
     } catch (err) {
-      return res.json({ jsonrpc: '2.0', id, error: { code: -32603, message: err.message } });
+      responses.push({
+        jsonrpc: '2.0', id,
+        error: { code: -32603, message: err.message },
+      });
     }
   }
 
-  res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method '${method}' tidak dikenal` } });
+  // Return single object or array based on input
+  if (responses.length === 0) {
+    return res.status(202).end();
+  }
+  res.json(Array.isArray(body) ? responses : responses[0]);
+});
+
+// DELETE session
+app.delete('/mcp', (req, res) => {
+  const sessionId = req.headers['mcp-session-id'];
+  if (sessionId && mcpSessions[sessionId]) {
+    mcpSessions[sessionId].end();
+    delete mcpSessions[sessionId];
+  }
+  res.status(200).end();
 });
 
 // ─────────────────────────────────────────────
@@ -332,7 +438,7 @@ app.post('/mcp', async (req, res) => {
 // ─────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`🎬 Video Studio Remotion v2.0 running on port ${PORT}`);
-  // Pre-warm bundle in background after 5 seconds
+  console.log(`🔗 Remote MCP endpoint: /mcp`);
   setTimeout(() => {
     console.log('[Remotion] Pre-warming bundle...');
     getBundle().catch((err) => console.error('[Bundle] Pre-warm failed:', err.message));
