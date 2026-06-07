@@ -964,7 +964,8 @@ Buat rencana animasi dalam format JSON array:
     const charTypes = [...new Set(scenes.map(s => s.character))].join(', ');
     return `✅ **Character Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n👤 **Karakter**: ${charTypes}\n🎬 **Jumlah Scene**: ${scenes.length} scene (${totalDuration} detik video)\n${characterName ? `🏷️ **Nama**: ${characterName}\n` : ''}${characterTitle ? `💼 **Jabatan**: ${characterTitle}\n` : ''}⏱️ Estimasi render: ${estimatedSec}-${estimatedSec * 2} detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
   }
-  // check_render_status {
+  // check_render_status
+  if (name === 'check_render_status') {
     const { renderId } = args;
     const job = renderJobs[renderId];
     if (!job) return `❌ Render job \`${renderId}\` tidak ditemukan.`;
