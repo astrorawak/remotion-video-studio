@@ -24,6 +24,7 @@ import { VHSTimelineScene } from './compositions/VHSTimelineScene';
 import { MacOSDockScene } from './compositions/MacOSDockScene';
 import { YouTubeSubscribeScene } from './compositions/YouTubeSubscribeScene';
 import { ExplainerVideoScene } from './compositions/ExplainerVideoScene';
+import { CharacterAnimation } from './compositions/CharacterAnimation';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -590,6 +591,26 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(90, (props.scenes?.length || 1) * 90),
+        })}
+      />
+      {/* Character Animation - v7.0 */}
+      <Composition
+        id="CharacterAnimation"
+        component={CharacterAnimation as any}
+        durationInFrames={120}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          scenes: [
+            { pose: 'standing' as const, character: 'entrepreneur' as const, text: 'Hello World', duration: 4 },
+          ],
+          bgColor: '#0A0A14',
+          accentColor: '#6C63FF',
+          background: 'gradient' as const,
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(120, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 4) * 30, 0)),
         })}
       />
     </>

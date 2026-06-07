@@ -95,7 +95,7 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
 }
 
 // ─────────────────────────────────────────────
-// MCP Tools Definition (v6.0 - 23 tools)
+// MCP Tools Definition (v7.0 - 24 tools)
 // ─────────────────────────────────────────────
 const MCP_TOOLS = [
   {
@@ -952,8 +952,19 @@ Buat rencana animasi dalam format JSON array:
     startRender(renderId, 'ExplainerVideo', { topic, scenes, bgColor, accentColor }, baseUrl, Math.max(3000, estimatedMs / 10), 5);
     return `✅ **Explainer Video dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 **Topik**: ${topic}\n📊 **Jumlah Scene**: ${scenes.length} scene (${scenes.length * 3} detik video)\n⏱️ Estimasi render: ${Math.ceil(scenes.length * 20)}-${Math.ceil(scenes.length * 40)} detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
   }
-  // check_render_status
-  if (name === 'check_render_status') {
+  // render_character_animation
+  if (name === 'render_character_animation') {
+    const { scenes = [], characterName, characterTitle, bgColor = '#0A0A14', accentColor = '#6C63FF', background = 'gradient' } = args;
+    if (!scenes.length) throw new Error('scenes tidak boleh kosong. Tambahkan minimal 1 scene dengan character dan pose.');
+    const renderId = randomUUID();
+    const totalDuration = scenes.reduce((acc, s) => acc + (s.duration || 4), 0);
+    const durationInFrames = Math.max(120, totalDuration * 30);
+    const estimatedSec = Math.ceil(scenes.length * 15);
+    startRender(renderId, 'CharacterAnimation', { scenes, characterName, characterTitle, bgColor, accentColor, background }, baseUrl, Math.max(3000, durationInFrames * 30), 5);
+    const charTypes = [...new Set(scenes.map(s => s.character))].join(', ');
+    return `✅ **Character Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n👤 **Karakter**: ${charTypes}\n🎬 **Jumlah Scene**: ${scenes.length} scene (${totalDuration} detik video)\n${characterName ? `🏷️ **Nama**: ${characterName}\n` : ''}${characterTitle ? `💼 **Jabatan**: ${characterTitle}\n` : ''}⏱️ Estimasi render: ${estimatedSec}-${estimatedSec * 2} detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
+  }
+  // check_render_status {
     const { renderId } = args;
     const job = renderJobs[renderId];
     if (!job) return `❌ Render job \`${renderId}\` tidak ditemukan.`;
@@ -1045,7 +1056,7 @@ Buat rencana animasi dalam format JSON array:
 // ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok', engine: 'Remotion 4.0', version: '6.0.0',
+    status: 'ok', engine: 'Remotion 4.0', version: '7.0.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
@@ -1199,7 +1210,7 @@ app.post('/mcp', async (req, res) => {
           jsonrpc: '2.0', id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'video-studio-remotion', version: '6.0.0' },
+            serverInfo: { name: 'video-studio-remotion', version: '7.0.0' },
             capabilities: { tools: {} },
           },
         });
