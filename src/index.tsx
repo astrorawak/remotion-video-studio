@@ -23,6 +23,7 @@ import { CommentExplosionScene } from './compositions/CommentExplosionScene';
 import { VHSTimelineScene } from './compositions/VHSTimelineScene';
 import { MacOSDockScene } from './compositions/MacOSDockScene';
 import { YouTubeSubscribeScene } from './compositions/YouTubeSubscribeScene';
+import { ExplainerVideoScene } from './compositions/ExplainerVideoScene';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -570,6 +571,26 @@ export const RemotionRoot: React.FC = () => {
           bgColor: '#0F0F0F',
           layout: 'full' as const,
         }}
+      />
+      {/* Explainer Video - v6.0 */}
+      <Composition
+        id="ExplainerVideo"
+        component={ExplainerVideoScene as any}
+        durationInFrames={90}
+        fps={30}
+        width={1280}
+        height={720}
+        defaultProps={{
+          topic: 'Mars',
+          scenes: [
+            { type: 'intro' as const, title: 'MARS', subtitle: 'The Red Planet', icon: '🔴' },
+          ],
+          bgColor: '#0A0A14',
+          accentColor: '#FF4500',
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(90, (props.scenes?.length || 1) * 90),
+        })}
       />
     </>
   );

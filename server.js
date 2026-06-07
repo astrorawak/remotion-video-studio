@@ -95,7 +95,7 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
 }
 
 // ─────────────────────────────────────────────
-// MCP Tools Definition (v5.1 - 22 tools)
+// MCP Tools Definition (v6.0 - 23 tools)
 // ─────────────────────────────────────────────
 const MCP_TOOLS = [
   {
@@ -536,6 +536,67 @@ const MCP_TOOLS = [
     description: 'Dapatkan daftar semua template, gaya visual, dan animasi yang tersedia di Video Studio v5.0.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'render_explainer_video',
+    description: 'Buat video infografis animasi kompleks seperti explainer video profesional. Mendukung 10 jenis scene: intro (judul pembuka), stat (angka count-up), comparison (perbandingan bar), progress (progress bar), countdown (hitung mundur dengan ring), list (daftar item staggered), orbit (animasi orbit planet), timeline (garis waktu), fact (fakta menarik), outro (penutup). Cocok untuk konten edukasi, sains, bisnis, dan infografis viral.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: { type: 'string', description: 'Topik utama video (contoh: Mars, Bitcoin, Indonesia)' },
+        scenes: {
+          type: 'array',
+          description: 'Array scene video. Setiap scene memiliki type yang berbeda dengan properti uniknya.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['intro', 'stat', 'comparison', 'progress', 'countdown', 'list', 'orbit', 'timeline', 'fact', 'outro'],
+                description: 'Jenis scene: intro=pembuka, stat=angka besar, comparison=perbandingan, progress=progress bar, countdown=hitung dengan ring, list=daftar staggered, orbit=animasi orbit, timeline=garis waktu, fact=fakta, outro=penutup'
+              },
+              title: { type: 'string', description: 'Judul (untuk intro/list/outro)' },
+              subtitle: { type: 'string', description: 'Subjudul (untuk intro/outro)' },
+              icon: { type: 'string', description: 'Emoji icon' },
+              label: { type: 'string', description: 'Label/nama (untuk stat/progress/countdown)' },
+              value: { type: 'number', description: 'Nilai numerik (untuk stat/comparison)' },
+              unit: { type: 'string', description: 'Satuan (contoh: km, %, juta)' },
+              description: { type: 'string', description: 'Deskripsi tambahan' },
+              percentage: { type: 'number', description: 'Persentase 0-100 (untuk progress)' },
+              from: { type: 'number', description: 'Nilai awal hitung (untuk countdown)' },
+              to: { type: 'number', description: 'Nilai akhir hitung (untuk countdown)' },
+              leftLabel: { type: 'string', description: 'Label kiri (untuk comparison)' },
+              leftValue: { type: 'number', description: 'Nilai kiri (untuk comparison)' },
+              rightLabel: { type: 'string', description: 'Label kanan (untuk comparison)' },
+              rightValue: { type: 'number', description: 'Nilai kanan (untuk comparison)' },
+              items: { type: 'array', items: { type: 'string' }, description: 'Daftar item teks (untuk list)' },
+              centerLabel: { type: 'string', description: 'Label pusat orbit (untuk orbit)' },
+              orbitLabel: { type: 'string', description: 'Label benda yang mengorbit (untuk orbit)' },
+              fact: { type: 'string', description: 'Fakta/keterangan (untuk orbit)' },
+              headline: { type: 'string', description: 'Judul besar (untuk fact)' },
+              body: { type: 'string', description: 'Isi teks (untuk fact)' },
+              events: {
+                type: 'array',
+                description: 'Event timeline (untuk timeline)',
+                items: {
+                  type: 'object',
+                  properties: {
+                    year: { type: 'string' },
+                    label: { type: 'string' }
+                  }
+                }
+              },
+              cta: { type: 'string', description: 'Call to action button text (untuk outro)' },
+              accentColor: { type: 'string', description: 'Warna aksen scene ini (override global)' },
+            },
+            required: ['type'],
+          },
+        },
+        bgColor: { type: 'string', description: 'Warna background hex global (default: #0A0A14)' },
+        accentColor: { type: 'string', description: 'Warna aksen hex global (default: #6C63FF)' },
+      },
+      required: ['topic', 'scenes'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -881,6 +942,16 @@ Buat rencana animasi dalam format JSON array:
     return `🎬 **Analisis video dimulai!**\n\n📋 **Analysis ID**: \`${analysisId}\`\n⏱️ Estimasi: 2-4 menit (download + transkripsi Groq Whisper + analisis AI + render)\n\nGunakan \`check_render_status\` dengan ID ini untuk memantau progres dan mendapatkan link download semua animasi.`;
   }
 
+  // render_explainer_video
+  if (name === 'render_explainer_video') {
+    const { topic = 'Explainer', scenes = [], bgColor = '#0A0A14', accentColor = '#6C63FF' } = args;
+    if (!scenes.length) throw new Error('scenes tidak boleh kosong. Tambahkan minimal 1 scene.');
+    const renderId = randomUUID();
+    const durationInFrames = Math.max(90, scenes.length * 90);
+    const estimatedMs = durationInFrames * (1000 / 30);
+    startRender(renderId, 'ExplainerVideo', { topic, scenes, bgColor, accentColor }, baseUrl, Math.max(3000, estimatedMs / 10), 5);
+    return `✅ **Explainer Video dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 **Topik**: ${topic}\n📊 **Jumlah Scene**: ${scenes.length} scene (${scenes.length * 3} detik video)\n⏱️ Estimasi render: ${Math.ceil(scenes.length * 20)}-${Math.ceil(scenes.length * 40)} detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
+  }
   // check_render_status
   if (name === 'check_render_status') {
     const { renderId } = args;
@@ -974,7 +1045,7 @@ Buat rencana animasi dalam format JSON array:
 // ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok', engine: 'Remotion 4.0', version: '5.2.0',
+    status: 'ok', engine: 'Remotion 4.0', version: '6.0.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
@@ -1128,7 +1199,7 @@ app.post('/mcp', async (req, res) => {
           jsonrpc: '2.0', id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'video-studio-remotion', version: '5.2.0' },
+            serverInfo: { name: 'video-studio-remotion', version: '6.0.0' },
             capabilities: { tools: {} },
           },
         });
