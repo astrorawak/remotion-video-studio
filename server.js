@@ -597,6 +597,39 @@ const MCP_TOOLS = [
       required: ['topic', 'scenes'],
     },
   },
+  {
+    name: 'render_character_animation',
+    description: 'Buat video animasi dengan karakter/avatar generik (businessman, entrepreneur, scientist, teacher, developer, athlete, doctor, artist). Karakter bisa berpose standing, pointing, celebrating, thinking, presenting, walking. Cocok untuk storytelling, video profil, explainer dengan karakter, atau video motivasi.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scenes: {
+          type: 'array',
+          description: 'Array scene karakter. Setiap scene memiliki karakter, pose, dan konten.',
+          items: {
+            type: 'object',
+            properties: {
+              character: { type: 'string', enum: ['businessman', 'entrepreneur', 'scientist', 'teacher', 'developer', 'athlete', 'doctor', 'artist'], description: 'Jenis karakter/profesi' },
+              pose: { type: 'string', enum: ['standing', 'pointing', 'celebrating', 'thinking', 'presenting', 'walking'], description: 'Pose karakter' },
+              skinTone: { type: 'string', enum: ['light', 'medium', 'dark'], description: 'Warna kulit karakter (default: medium)' },
+              text: { type: 'string', description: 'Teks utama di atas karakter' },
+              subtext: { type: 'string', description: 'Teks kecil di bawah text utama' },
+              bubbleText: { type: 'string', description: 'Teks di speech bubble (balon kata)' },
+              stat: { type: 'object', description: 'Statistik/angka yang ditampilkan', properties: { label: { type: 'string' }, value: { type: 'string' } } },
+              duration: { type: 'number', description: 'Durasi scene dalam detik (default: 4)' },
+            },
+            required: ['character', 'pose'],
+          },
+        },
+        characterName: { type: 'string', description: 'Nama karakter (contoh: "Elon Musk", "Steve Jobs")' },
+        characterTitle: { type: 'string', description: 'Jabatan/profesi karakter (contoh: "CEO Tesla & SpaceX")' },
+        bgColor: { type: 'string', description: 'Warna background hex (default: #0A0A14)' },
+        accentColor: { type: 'string', description: 'Warna aksen hex (default: #6C63FF)' },
+        background: { type: 'string', enum: ['office', 'space', 'city', 'gradient', 'minimal'], description: 'Jenis background (default: gradient)' },
+      },
+      required: ['scenes'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
