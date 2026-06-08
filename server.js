@@ -1299,7 +1299,10 @@ Buat rencana animasi dalam format JSON array:
         const curatorPred = await curatorPredRes.json();
         if (!curatorPred.id) throw new Error(`Flux Dev curator error: ${JSON.stringify(curatorPred)}`);
 
-        // ── Step 2: Generate gambar OBJEK via Flux Dev (paralel) ──
+        // ── Step 2: Generate gambar OBJEK via Flux Dev (sequential, delay 15s untuk rate limit) ──
+        renderJobs[renderId].message = '⏳ [1/4] Menunggu rate limit Replicate...';
+        renderJobs[renderId].progress = 8;
+        await new Promise(r => setTimeout(r, 15000)); // Tunggu 15 detik
         renderJobs[renderId].message = '🏺 [2/4] Menggambar objek/artefak dengan Flux Dev...';
         renderJobs[renderId].progress = 10;
 
@@ -1323,12 +1326,9 @@ Buat rencana animasi dalam format JSON array:
         const objectPred = await objectPredRes.json();
         if (!objectPred.id) throw new Error(`Flux Dev object error: ${JSON.stringify(objectPred)}`);
 
-        // ── Poll kedua gambar secara paralel ──
-        renderJobs[renderId].message = '⏳ [2/4] AI sedang menggambar kurator dan objek...';
-        let curatorImageUrl = null;
-        let objectImageUrl = null;
-
-        const pollReplicate = async (predId, label) => {
+        // ── Poll gambar secara sequential ──
+        const pollReplicate = async (predId, label, progressMsg) => {
+          renderJobs[renderId].message = progressMsg;
           for (let i = 0; i < 90; i++) {
             await new Promise(r => setTimeout(r, 3000));
             const res = await fetch(`https://api.replicate.com/v1/predictions/${predId}`, {
@@ -1344,10 +1344,18 @@ Buat rencana animasi dalam format JSON array:
           throw new Error(`Timeout: ${label} tidak selesai dalam 4.5 menit`);
         };
 
-        [curatorImageUrl, objectImageUrl] = await Promise.all([
-          pollReplicate(curatorPred.id, 'Kurator'),
-          pollReplicate(objectPred.id, 'Objek'),
-        ]);
+        let curatorImageUrl = null;
+        let objectImageUrl = null;
+
+        // Poll kurator dulu
+        curatorImageUrl = await pollReplicate(curatorPred.id, 'Kurator', '⏳ [1/4] AI sedang menggambar kurator...');
+        renderJobs[renderId].progress = 25;
+        renderJobs[renderId].curatorImageUrl = curatorImageUrl;
+
+        // Poll objek setelah kurator selesai
+        objectImageUrl = await pollReplicate(objectPred.id, 'Objek', '🏺 [2/4] AI sedang menggambar objek...');
+        renderJobs[renderId].progress = 45;
+        renderJobs[renderId].objectImageUrl = objectImageUrl;
 
         renderJobs[renderId].message = '✅ [2/4] Gambar kurator dan objek berhasil!';
         renderJobs[renderId].progress = 45;
