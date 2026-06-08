@@ -690,6 +690,66 @@ const MCP_TOOLS = [
       required: ['characterDescription', 'characterName', 'scenes'],
     },
   },
+  {
+    name: 'render_baranganeh_video',
+    description: 'Buat video sinematik storytelling untuk @baranganeh. Pipeline: (1) Flux Dev generate gambar kurator Victorian dark academia, (2) Flux Dev generate gambar objek/artefak, (3) WAN 2.5 i2v animasikan gambar jadi video bergerak, (4) Remotion compose final video dengan teks animasi sinematik. Cocok untuk konten misteri, dark academia, dan storytelling intelektual di X/Twitter.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lotNumber: {
+          type: 'string',
+          description: 'Nomor lot katalog. Contoh: "LOT #247"',
+        },
+        category: {
+          type: 'string',
+          enum: ['dark_obsession', 'satirical_anomaly', 'logic_glitch'],
+          description: 'Kategori konten: dark_obsession=horor psikologis, satirical_anomaly=sindiran sosial, logic_glitch=sci-fi konseptual',
+        },
+        curatorDescription: {
+          type: 'string',
+          description: 'Deskripsi kurator untuk di-generate AI. Contoh: "Victorian scholar, dark academia aesthetic, aged 45, wearing dark wool coat, white shirt, thin glasses, mysterious calm expression, chiaroscuro lighting, dark library background, oil painting style"',
+        },
+        objectDescription: {
+          type: 'string',
+          description: 'Deskripsi objek/artefak untuk di-generate AI. Contoh: "antique pocket watch, Victorian era, brass and steel, ornate engravings, dramatic lighting, dark background, museum photography style, ultra detailed"',
+        },
+        objectName: {
+          type: 'string',
+          description: 'Nama objek yang ditampilkan sebagai label. Contoh: "Jam Tangan Aneroid — London, 1887"',
+        },
+        scenes: {
+          type: 'array',
+          description: 'Array scene video storytelling. Setiap scene memiliki type dan narasi.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['hook', 'object_reveal', 'catalog', 'anomaly', 'implication', 'chapter', 'seal'],
+                description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis, catalog=deskripsi dingin objek, anomaly=inti narasi+kurator, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand',
+              },
+              text: { type: 'string', description: 'Teks narasi utama scene' },
+              subtext: { type: 'string', description: 'Teks sekunder/metadata' },
+              chapterTitle: { type: 'string', description: 'Judul bab (untuk scene type chapter)' },
+              duration: { type: 'number', description: 'Durasi dalam frame (24fps). 24=1 detik, 72=3 detik, 120=5 detik. Default: 90' },
+              textSpeed: { type: 'string', enum: ['slow', 'normal', 'fast'], description: 'Kecepatan typewriter. slow=dramatis, normal=standar, fast=cepat' },
+              glitchWords: { type: 'array', items: { type: 'string' }, description: 'Kata-kata yang akan di-glitch (efek bergetar/warna aksen). Gunakan untuk kata kunci paling penting.' },
+            },
+            required: ['type', 'text'],
+          },
+        },
+        accentColor: {
+          type: 'string',
+          description: 'Warna aksen hex. Default: #C9A84C (emas tua). Untuk dark_obsession: #C9A84C, satirical: #8B1A1A (merah tua), logic_glitch: #1A4A8B (biru tua)',
+        },
+        animateWithAI: {
+          type: 'boolean',
+          description: 'Jika true, gunakan WAN 2.5 i2v untuk menganimasikan gambar kurator dan objek jadi video bergerak (lebih lambat ~5-8 menit, lebih keren). Jika false, gunakan animasi Remotion saja (lebih cepat ~2-3 menit). Default: false',
+        },
+      },
+      required: ['scenes', 'objectDescription', 'curatorDescription'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -1193,6 +1253,197 @@ Buat rencana animasi dalam format JSON array:
     const sceneTypes = scenes.map(s => s.type).join(', ');
     return `✅ **AI Character Video dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎨 **Karakter**: ${characterName}\n💼 **Jabatan**: ${characterTitle}\n🖼️ **Style**: ${imageStyle}\n🎬 **Scenes**: ${scenes.length} scene (${sceneTypes})\n⏱️ Estimasi: 60-120 detik (generate AI + render video)\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
+
+  // render_baranganeh_video
+  if (name === 'render_baranganeh_video') {
+    const {
+      lotNumber = 'LOT #001',
+      category = 'dark_obsession',
+      curatorDescription,
+      objectDescription,
+      objectName = 'Artefak Tidak Dikenal',
+      scenes,
+      accentColor = '#C9A84C',
+      animateWithAI = false,
+    } = args;
+
+    const renderId = randomUUID();
+    renderJobs[renderId] = { status: 'processing', progress: 0, message: '🔍 Memulai pipeline @baranganeh...' };
+
+    (async () => {
+      try {
+        const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+        if (!REPLICATE_TOKEN) throw new Error('REPLICATE_API_TOKEN tidak tersedia di server');
+
+        // ── Step 1: Generate gambar KURATOR via Flux Dev ──
+        renderJobs[renderId].message = '🎨 [1/4] Menggambar kurator dengan Flux Dev...';
+        renderJobs[renderId].progress = 5;
+
+        const curatorPrompt = `${curatorDescription}, chiaroscuro lighting, single candle light source, 70% face in shadow, dark background, cinematic portrait, high detail, 4k, dramatic atmosphere, no text, no watermark`;
+
+        const curatorPredRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-dev/predictions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: {
+              prompt: curatorPrompt,
+              num_outputs: 1,
+              aspect_ratio: '3:4',
+              output_format: 'webp',
+              output_quality: 90,
+              num_inference_steps: 28,
+              guidance_scale: 3.5,
+            },
+          }),
+        });
+        const curatorPred = await curatorPredRes.json();
+        if (!curatorPred.id) throw new Error(`Flux Dev curator error: ${JSON.stringify(curatorPred)}`);
+
+        // ── Step 2: Generate gambar OBJEK via Flux Dev (paralel) ──
+        renderJobs[renderId].message = '🏺 [2/4] Menggambar objek/artefak dengan Flux Dev...';
+        renderJobs[renderId].progress = 10;
+
+        const objectPrompt = `${objectDescription}, dramatic studio lighting, dark background, museum photography, ultra detailed, cinematic, 4k, no text, no watermark, isolated object`;
+
+        const objectPredRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-dev/predictions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: {
+              prompt: objectPrompt,
+              num_outputs: 1,
+              aspect_ratio: '3:4',
+              output_format: 'webp',
+              output_quality: 90,
+              num_inference_steps: 28,
+              guidance_scale: 3.5,
+            },
+          }),
+        });
+        const objectPred = await objectPredRes.json();
+        if (!objectPred.id) throw new Error(`Flux Dev object error: ${JSON.stringify(objectPred)}`);
+
+        // ── Poll kedua gambar secara paralel ──
+        renderJobs[renderId].message = '⏳ [2/4] AI sedang menggambar kurator dan objek...';
+        let curatorImageUrl = null;
+        let objectImageUrl = null;
+
+        const pollReplicate = async (predId, label) => {
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const res = await fetch(`https://api.replicate.com/v1/predictions/${predId}`, {
+              headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+            });
+            const data = await res.json();
+            if (data.status === 'succeeded') {
+              return Array.isArray(data.output) ? data.output[0] : data.output;
+            } else if (data.status === 'failed') {
+              throw new Error(`${label} generation failed: ${data.error}`);
+            }
+          }
+          throw new Error(`Timeout: ${label} tidak selesai dalam 4.5 menit`);
+        };
+
+        [curatorImageUrl, objectImageUrl] = await Promise.all([
+          pollReplicate(curatorPred.id, 'Kurator'),
+          pollReplicate(objectPred.id, 'Objek'),
+        ]);
+
+        renderJobs[renderId].message = '✅ [2/4] Gambar kurator dan objek berhasil!';
+        renderJobs[renderId].progress = 45;
+        renderJobs[renderId].curatorImageUrl = curatorImageUrl;
+        renderJobs[renderId].objectImageUrl = objectImageUrl;
+
+        // ── Step 3 (Opsional): Animasi via WAN 2.5 i2v ──
+        let objectVideoUrl = null;
+        if (animateWithAI) {
+          renderJobs[renderId].message = '🎥 [3/4] Menganimasikan objek dengan WAN 2.5 i2v...';
+          renderJobs[renderId].progress = 50;
+
+          const wanRes = await fetch('https://api.replicate.com/v1/models/wan-video/wan-2.5-i2v-fast/predictions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: {
+                image: objectImageUrl,
+                prompt: `slow dramatic camera movement, cinematic pan, the ${objectDescription} slowly rotates, dust particles floating, candlelight flickering, dark atmosphere, museum showcase, ultra cinematic`,
+                duration: 5,
+                resolution: '720p',
+                negative_prompt: 'fast movement, blur, distortion, text, watermark',
+                enable_prompt_expansion: true,
+              },
+            }),
+          });
+          const wanPred = await wanRes.json();
+          if (wanPred.id) {
+            objectVideoUrl = await pollReplicate(wanPred.id, 'WAN i2v');
+            renderJobs[renderId].message = '✅ [3/4] Animasi objek berhasil!';
+            renderJobs[renderId].progress = 70;
+            renderJobs[renderId].objectVideoUrl = objectVideoUrl;
+          }
+        }
+
+        // ── Step 4: Render final video dengan Remotion ──
+        renderJobs[renderId].message = '🎬 [4/4] Merender video final dengan Remotion...';
+        renderJobs[renderId].progress = animateWithAI ? 72 : 48;
+
+        const totalFrames = Math.max(144, scenes.reduce((acc, s) => acc + (s.duration || 90), 0));
+        const timeoutMs = Math.max(60000, totalFrames * 80);
+
+        const videoRenderId = randomUUID();
+        startRender(videoRenderId, 'BaranganehVideo', {
+          scenes,
+          curatorImageUrl,
+          objectImageUrl,
+          objectVideoUrl,
+          backgroundType: 'library',
+          accentColor,
+          lotNumber,
+          category,
+        }, baseUrl, timeoutMs, 5);
+
+        // Monitor render video
+        for (let i = 0; i < 150; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const videoJob = renderJobs[videoRenderId];
+          if (!videoJob) break;
+          if (videoJob.status === 'done') {
+            renderJobs[renderId] = {
+              status: 'done',
+              progress: 100,
+              downloadUrl: videoJob.downloadUrl,
+              fileSize: videoJob.fileSize,
+              message: '✅ Video @baranganeh selesai!',
+              curatorImageUrl,
+              objectImageUrl,
+              objectVideoUrl,
+            };
+            break;
+          } else if (videoJob.status === 'error') {
+            throw new Error(videoJob.error);
+          }
+          const baseProgress = animateWithAI ? 72 : 48;
+          renderJobs[renderId].progress = Math.min(95, baseProgress + i * 0.3);
+          renderJobs[renderId].message = `🎬 [4/4] Rendering... ${videoJob?.progress || 0}%`;
+        }
+      } catch (err) {
+        renderJobs[renderId] = { status: 'error', error: err.message };
+      }
+    })();
+
+    const sceneTypes = scenes.map(s => s.type).join(' → ');
+    const estimatedTime = animateWithAI ? '5-8 menit (dengan animasi AI)' : '2-4 menit';
+    return `✅ **@baranganeh Video Pipeline Dimulai!**
+
+📋 **Render ID**: \`${renderId}\`
+🏷️ **Lot**: ${lotNumber} | **Kategori**: ${category}
+🎨 **Pipeline**: Flux Dev (kurator) + Flux Dev (objek)${animateWithAI ? ' + WAN i2v (animasi)' : ''} + Remotion
+🎬 **Scenes**: ${scenes.length} scene: ${sceneTypes}
+⏱️ **Estimasi**: ${estimatedTime}
+
+Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.`;
+  }
+
   // check_render_status
   if (name === 'check_render_status') {
     const { renderId } = args;

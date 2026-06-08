@@ -25,6 +25,8 @@ import { MacOSDockScene } from './compositions/MacOSDockScene';
 import { YouTubeSubscribeScene } from './compositions/YouTubeSubscribeScene';
 import { ExplainerVideoScene } from './compositions/ExplainerVideoScene';
 import { CharacterAnimation } from './compositions/CharacterAnimation';
+import { AICharacterVideo } from './compositions/AICharacterVideo';
+import { BaranganehVideo } from './compositions/BaranganehVideo';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -611,6 +613,55 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(120, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 4) * 30, 0)),
+        })}
+      />
+      <Composition
+        id="AICharacterVideo"
+        component={AICharacterVideo as any}
+        durationInFrames={330}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          scenes: [
+            { type: 'intro', title: 'ELON MUSK', subtitle: 'Entrepreneur & Visionary', duration: 60 },
+            { type: 'character', title: 'Elon Musk', subtitle: 'CEO Tesla & SpaceX', duration: 90 },
+            { type: 'stat', title: 'Net Worth', value: '$250', unit: 'BILLION', description: 'Orang terkaya di dunia', duration: 90 },
+            { type: 'outro', title: 'Follow for more!', subtitle: '@videostudio', duration: 60 },
+          ],
+          bgColor: '#0a0a1a',
+          accentColor: '#f97316',
+          textColor: '#ffffff',
+          characterImageUrl: '',
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(120, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 90), 0)),
+        })}
+      />
+      {/* BaranganehVideo - Cinematic Storytelling @baranganeh */}
+      <Composition
+        id="BaranganehVideo"
+        component={BaranganehVideo as any}
+        durationInFrames={540}
+        fps={24}
+        width={1080}
+        height={1350}
+        defaultProps={{
+          scenes: [
+            { type: 'hook', text: 'Benda ini adalah alasan kenapa tahun 1890 tidak pernah benar-benar berakhir.', duration: 72, textSpeed: 'slow', glitchWords: ['1890'] },
+            { type: 'object_reveal', text: 'Jam Tangan Aneroid — London, 1887', duration: 72 },
+            { type: 'catalog', text: 'Diameter 4.2 cm. Baja karbon. Tidak ada mekanisme penggerak yang bisa diidentifikasi.', subtext: 'Kondisi: Sempurna. Pemilik sebelumnya: Tidak diketahui.', duration: 96 },
+            { type: 'anomaly', text: 'Jam ini berhenti tepat pada detik yang sama setiap hari — pukul 03:47. Tidak ada penjelasan mekanis yang bisa ditemukan.', duration: 120, glitchWords: ['03:47'] },
+            { type: 'implication', text: 'Apa artinya jika waktu bukan sesuatu yang kita ukur, melainkan sesuatu yang mengukur kita?', duration: 96 },
+            { type: 'seal', text: 'Lot ini ditutup untuk sementara. Katalog berikutnya akan tersedia ketika Anda sudah siap.', duration: 84 },
+          ],
+          backgroundType: 'library',
+          accentColor: '#C9A84C',
+          lotNumber: 'LOT #001',
+          category: 'dark_obsession',
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(144, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 90), 0)),
         })}
       />
     </>
