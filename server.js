@@ -725,15 +725,20 @@ const MCP_TOOLS = [
             properties: {
               type: {
                 type: 'string',
-                enum: ['hook', 'object_reveal', 'object_focus', 'catalog', 'anomaly', 'implication', 'chapter', 'seal'],
-                description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis dgn spotlight, object_focus=objek FULL-SCREEN dominan dgn slow zoom (WAJIB pakai ini agar objek terlihat besar & jelas, render video bergerak jika animateWithAI true), catalog=deskripsi dingin objek di samping gambar, anomaly=inti narasi+kurator+objek, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand',
+                enum: ['hook', 'object_reveal', 'object_focus', 'catalog', 'anomaly', 'implication', 'chapter', 'seal', 'fact', 'context', 'lesson', 'price', 'quote'],
+                description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis dgn spotlight, object_focus=objek FULL-SCREEN dominan dgn slow zoom (WAJIB pakai minimal 1x agar objek terlihat besar & jelas, render video bergerak jika animateWithAI true), catalog=deskripsi dingin objek di samping gambar, anomaly=inti narasi+kurator+objek, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand, fact=fakta+label sumber dgn objek di samping (untuk konten kaya data), context=latar sejarah naratif panjang, lesson=ilmu kehidupan/refleksi filosofis, price=harga non-moneter konsep @baranganeh, quote=kutipan dramatis besar',
               },
-              text: { type: 'string', description: 'Teks narasi utama scene' },
+              text: { type: 'string', description: 'Teks narasi utama scene. Untuk video panjang 1-2 menit, isi dengan kalimat bermakna & informatif.' },
               subtext: { type: 'string', description: 'Teks sekunder/metadata' },
               chapterTitle: { type: 'string', description: 'Judul bab (untuk scene type chapter)' },
-              duration: { type: 'number', description: 'Durasi dalam frame (24fps). 24=1 detik, 72=3 detik, 120=5 detik. Default: 90' },
-              textSpeed: { type: 'string', enum: ['slow', 'normal', 'fast'], description: 'Kecepatan typewriter. slow=dramatis, normal=standar, fast=cepat' },
+              duration: { type: 'number', description: 'Durasi dalam frame (24fps). 24=1 detik, 72=3 detik, 120=5 detik, 180=7.5 detik. PENTING: teks muncul perlahan & auto-fit, jadi beri durasi cukup ~3 frame per karakter. Untuk fact/context/lesson teks panjang, gunakan 150-220. Default: 90' },
+              textSpeed: { type: 'string', enum: ['slow', 'normal', 'fast'], description: 'Kecepatan typewriter. slow=dramatis(disarankan untuk hook/lesson/quote), normal=standar(fact/catalog), fast=cepat. Teks tetap auto-fit agar selalu terbaca penuh.' },
               glitchWords: { type: 'array', items: { type: 'string' }, description: 'Kata-kata yang akan di-glitch (efek bergetar/warna aksen). Gunakan untuk kata kunci paling penting.' },
+              factLabel: { type: 'string', description: 'Untuk scene type=fact: label validitas. Contoh: "TERDOKUMENTASI", "DIPERDEBATKAN", "SPEKULATIF"' },
+              source: { type: 'string', description: 'Untuk scene fact/quote: sumber fakta atau atribusi kutipan. Contoh: "Royal Observatory, 1820"' },
+              priceLabel: { type: 'string', description: 'Untuk scene type=price: teks harga non-moneter. Contoh: "Lima tahun ingatan masa kecil Anda"' },
+              riskStatus: { type: 'string', description: 'Untuk scene type=price: status risiko. Contoh: "TIDAK DAPAT DIUKUR", "TINGGI"' },
+              label: { type: 'string', description: 'Eyebrow label kecil di atas scene (fact/context/lesson/price). Contoh: "FAKTA", "KONTEKS", "REFLEKSI"' },
             },
             required: ['type', 'text'],
           },
@@ -745,6 +750,10 @@ const MCP_TOOLS = [
         animateWithAI: {
           type: 'boolean',
           description: 'Jika true, gunakan WAN 2.5 i2v untuk menganimasikan gambar kurator dan objek jadi video bergerak (lebih lambat ~5-8 menit, lebih keren). Jika false, gunakan animasi Remotion saja (lebih cepat ~2-3 menit). Default: false',
+        },
+        partLabel: {
+          type: 'string',
+          description: 'Opsional. Untuk video multi-bagian yang akan digabung di CapCut. Contoh: "BAGIAN 1/3". Akan ditampilkan kecil di pojok video. Gunakan jika ingin membuat seri panjang 3+ menit yang dipecah jadi beberapa render terpisah.',
         },
       },
       required: ['scenes', 'objectDescription', 'curatorDescription'],
@@ -1265,6 +1274,7 @@ Buat rencana animasi dalam format JSON array:
       scenes,
       accentColor = '#C9A84C',
       animateWithAI = false,
+      partLabel,
     } = args;
 
     const renderId = randomUUID();
@@ -1408,6 +1418,7 @@ Buat rencana animasi dalam format JSON array:
           accentColor,
           lotNumber,
           category,
+          partLabel,
         }, baseUrl, timeoutMs, 5);
 
         // Monitor render video

@@ -22,7 +22,12 @@ export type BaranganehScene = {
     | "seal"        // penutup brand
     | "chapter"     // pembatas bab — judul bab baru
     | "object_reveal" // reveal objek dramatis dengan efek spotlight
-    | "object_focus"; // objek full-screen dominan dengan slow zoom (video jika tersedia)
+    | "object_focus" // objek full-screen dominan dengan slow zoom (video jika tersedia)
+    | "fact"        // fakta + label sumber/validitas, objek di samping
+    | "context"     // latar sejarah/konteks, teks naratif panjang
+    | "lesson"      // ilmu kehidupan / refleksi filosofis
+    | "price"       // harga non-moneter (konsep @baranganeh)
+    | "quote";      // kutipan dramatis, teks besar italic
   text?: string;           // teks narasi utama
   subtext?: string;        // teks sekunder
   lotNumber?: string;      // nomor lot, misal "LOT #247"
@@ -34,6 +39,11 @@ export type BaranganehScene = {
   showCurator?: boolean;   // tampilkan gambar kurator di scene ini
   objectPosition?: "left" | "right" | "center" | "background"; // posisi objek
   curatorPosition?: "left" | "right"; // posisi kurator
+  factLabel?: string;      // label untuk scene fact: "TERDOKUMENTASI" | "DIPERDEBATKAN" | "SPEKULATIF"
+  source?: string;         // sumber fakta, misal "Royal Observatory, 1820"
+  priceLabel?: string;     // untuk scene price: harga non-moneter
+  riskStatus?: string;     // untuk scene price: status risiko
+  label?: string;          // label kecil di atas scene (eyebrow), misal "FAKTA", "KONTEKS"
 };
 
 export type BaranganehVideoProps = {
@@ -45,6 +55,7 @@ export type BaranganehVideoProps = {
   accentColor?: string;        // default: #C9A84C (emas tua)
   lotNumber?: string;          // nomor lot global
   category?: "dark_obsession" | "satirical_anomaly" | "logic_glitch";
+  partLabel?: string;          // label bagian untuk video multi-part, misal "BAGIAN 1/3"
 };
 
 // ─── Konstanta Visual ────────────────────────────────────────────────────────
@@ -76,8 +87,19 @@ const TypewriterText: React.FC<{
   style?: React.CSSProperties;
   glitchWords?: string[];
   accentColor?: string;
-}> = ({ text, frame, startFrame = 0, speed = "normal", style, glitchWords = [], accentColor = COLORS.accent }) => {
-  const charsPerFrame = speed === "slow" ? 0.35 : speed === "fast" ? 1.2 : 0.65;
+  sceneDuration?: number;   // total frame scene; aktifkan auto-fit jika diisi
+  holdFrames?: number;      // frame sisa untuk "hold" (baca) setelah teks selesai
+}> = ({ text, frame, startFrame = 0, speed = "normal", style, glitchWords = [], accentColor = COLORS.accent, sceneDuration, holdFrames = 30 }) => {
+  // Kecepatan dasar (chars per frame). Lebih lambat dari sebelumnya agar mudah dibaca.
+  let charsPerFrame = speed === "slow" ? 0.28 : speed === "fast" ? 0.9 : 0.5;
+  // Auto-fit: jika sceneDuration diketahui, pastikan teks selesai sebelum (durasi - hold),
+  // tapi JANGAN melebihi kecepatan dasar (biar tetap lambat & terbaca).
+  if (sceneDuration && text.length > 0) {
+    const framesForTyping = Math.max(1, sceneDuration - startFrame - holdFrames);
+    const requiredCpf = text.length / framesForTyping;
+    // jika butuh lebih cepat dari kecepatan dasar, percepat secukupnya (cap di 1.6)
+    if (requiredCpf > charsPerFrame) charsPerFrame = Math.min(1.6, requiredCpf);
+  }
   const elapsed = Math.max(0, frame - startFrame);
   const visibleChars = Math.floor(elapsed * charsPerFrame);
   const visibleText = text.slice(0, visibleChars);
@@ -374,6 +396,7 @@ const HookScene: React.FC<{
               speed={scene.textSpeed || "slow"}
               glitchWords={scene.glitchWords}
               accentColor={accentColor}
+              sceneDuration={scene.duration || 90}
             />
           </div>
         </div>
@@ -601,6 +624,7 @@ const CatalogScene: React.FC<{
               speed={scene.textSpeed || "normal"}
               glitchWords={scene.glitchWords}
               accentColor={accentColor}
+              sceneDuration={scene.duration || 90}
             />
           </div>
 
@@ -751,6 +775,7 @@ const AnomalyScene: React.FC<{
               speed={scene.textSpeed || "normal"}
               glitchWords={scene.glitchWords}
               accentColor={accentColor}
+              sceneDuration={scene.duration || 90}
             />
           </div>
 
@@ -875,6 +900,7 @@ const ImplicationScene: React.FC<{
               speed={scene.textSpeed || "slow"}
               glitchWords={scene.glitchWords}
               accentColor={accentColor}
+              sceneDuration={scene.duration || 90}
             />
           </div>
 
@@ -1134,6 +1160,7 @@ const SealScene: React.FC<{
               startFrame={20}
               speed="slow"
               accentColor={accentColor}
+              sceneDuration={scene.duration || 90}
             />
           </div>
 
@@ -1157,6 +1184,294 @@ const SealScene: React.FC<{
 
 // ─── Komponen Utama ───────────────────────────────────────────────────────────
 
+// ─── Scene: FACT (fakta + label sumber, objek di samping) ────────────────────
+
+const FactScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+  objectImageUrl?: string;
+  objectVideoUrl?: string;
+}> = ({ scene, frame, fps, accentColor, objectImageUrl, objectVideoUrl }) => {
+  const flickerBrightness = useCandleFlicker(frame);
+  const dur = scene.duration || 150;
+  const bgScale = interpolate(frame, [0, dur], [1.02, 1.06], { extrapolateRight: "clamp" });
+  const textOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+  const objOpacity = interpolate(frame, [10, 40], [0, 1], { extrapolateRight: "clamp" });
+  const floatY = Math.sin(frame / 50) * 6;
+  const hasMedia = !!(objectImageUrl || objectVideoUrl);
+
+  return (
+    <AbsoluteFill>
+      <div style={{ position: "absolute", inset: 0, transform: `scale(${bgScale})`, transformOrigin: "center" }}>
+        <BackgroundLibrary frame={frame} flickerBrightness={flickerBrightness} />
+      </div>
+      <FilmGrain frame={frame} intensity={0.05} />
+      <Vignette frame={frame} intensity={0.75} />
+
+      <AbsoluteFill style={{ flexDirection: "row", alignItems: "center", padding: "0 90px", gap: 50 }}>
+        {/* Kolom teks */}
+        <div style={{ flex: 1, opacity: textOpacity }}>
+          <div style={{
+            fontFamily: FONTS.mono, fontSize: 18, letterSpacing: 4,
+            color: accentColor, marginBottom: 8, textTransform: "uppercase",
+          }}>
+            {scene.label || "FAKTA"}
+          </div>
+          {scene.factLabel && (
+            <div style={{
+              display: "inline-block", fontFamily: FONTS.mono, fontSize: 13,
+              letterSpacing: 2, color: COLORS.bg, background: accentColor,
+              padding: "3px 10px", borderRadius: 2, marginBottom: 18,
+            }}>
+              {scene.factLabel}
+            </div>
+          )}
+          <div style={{ fontFamily: FONTS.serif, fontSize: 34, color: COLORS.text, lineHeight: 1.5 }}>
+            <TypewriterText
+              text={scene.text || ""}
+              frame={frame}
+              startFrame={12}
+              speed={scene.textSpeed || "slow"}
+              glitchWords={scene.glitchWords}
+              accentColor={accentColor}
+              sceneDuration={dur}
+            />
+          </div>
+          {scene.source && (
+            <div style={{
+              fontFamily: FONTS.mono, fontSize: 16, color: COLORS.sepia,
+              marginTop: 22, opacity: interpolate(frame, [dur * 0.5, dur * 0.7], [0, 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }),
+            }}>
+              — {scene.source}
+            </div>
+          )}
+        </div>
+        {/* Kolom objek */}
+        {hasMedia && (
+          <div style={{
+            width: 380, height: 480, opacity: objOpacity,
+            transform: `translateY(${floatY}px)`,
+            boxShadow: `0 0 60px ${accentColor}25`,
+            border: `1px solid ${accentColor}30`,
+          }}>
+            <ObjectMedia imageUrl={objectImageUrl} videoUrl={objectVideoUrl} />
+          </div>
+        )}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ─── Scene: CONTEXT (narasi sejarah panjang, teks tengah) ────────────────────
+
+const ContextScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const flickerBrightness = useCandleFlicker(frame);
+  const dur = scene.duration || 180;
+  const bgScale = interpolate(frame, [0, dur], [1.03, 1.08], { extrapolateRight: "clamp" });
+  const textOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+
+  return (
+    <AbsoluteFill>
+      <div style={{ position: "absolute", inset: 0, transform: `scale(${bgScale})`, transformOrigin: "center" }}>
+        <BackgroundLibrary frame={frame} flickerBrightness={flickerBrightness * 0.85} />
+      </div>
+      <FilmGrain frame={frame} intensity={0.06} />
+      <Vignette frame={frame} intensity={0.85} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: "0 110px" }}>
+        <div style={{ opacity: textOpacity, textAlign: "center", maxWidth: 860 }}>
+          <div style={{
+            fontFamily: FONTS.mono, fontSize: 18, letterSpacing: 5,
+            color: accentColor, marginBottom: 26, textTransform: "uppercase",
+          }}>
+            {scene.label || "KONTEKS"}
+          </div>
+          <div style={{ fontFamily: FONTS.serif, fontSize: 32, color: COLORS.text, lineHeight: 1.65 }}>
+            <TypewriterText
+              text={scene.text || ""}
+              frame={frame}
+              startFrame={12}
+              speed={scene.textSpeed || "slow"}
+              glitchWords={scene.glitchWords}
+              accentColor={accentColor}
+              sceneDuration={dur}
+            />
+          </div>
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ─── Scene: LESSON (ilmu kehidupan / refleksi) ───────────────────────────────
+
+const LessonScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const dur = scene.duration || 165;
+  const bgPulse = 0.3 + Math.sin(frame / 40) * 0.1;
+  const textOpacity = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: "clamp" });
+  const lineW = interpolate(frame, [20, 60], [0, 120], { extrapolateRight: "clamp" });
+
+  return (
+    <AbsoluteFill style={{ background: COLORS.bg }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(circle at 50% 45%, ${accentColor}10 0%, transparent 55%)`,
+        opacity: bgPulse,
+      }} />
+      <DustParticles frame={frame} count={16} />
+      <FilmGrain frame={frame} intensity={0.05} />
+      <Vignette frame={frame} intensity={0.9} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: "0 120px" }}>
+        <div style={{ opacity: textOpacity, textAlign: "center", maxWidth: 820 }}>
+          <div style={{ width: lineW, height: 1, background: accentColor, margin: "0 auto 30px" }} />
+          <div style={{
+            fontFamily: FONTS.serif, fontSize: 38, color: COLORS.text,
+            lineHeight: 1.6, fontStyle: "italic",
+          }}>
+            <TypewriterText
+              text={scene.text || ""}
+              frame={frame}
+              startFrame={15}
+              speed={scene.textSpeed || "slow"}
+              glitchWords={scene.glitchWords}
+              accentColor={accentColor}
+              sceneDuration={dur}
+            />
+          </div>
+          <div style={{ width: lineW, height: 1, background: accentColor, margin: "30px auto 0" }} />
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ─── Scene: PRICE (harga non-moneter — konsep @baranganeh) ────────────────────
+
+const PriceScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const dur = scene.duration || 150;
+  const labelOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+  const priceScale = spring({ frame, fps, config: { damping: 28, stiffness: 70 }, from: 0.9, to: 1 });
+  const priceOpacity = interpolate(frame, [15, 45], [0, 1], { extrapolateRight: "clamp" });
+  const glowPulse = 0.4 + Math.sin(frame / 25) * 0.25;
+
+  return (
+    <AbsoluteFill style={{ background: COLORS.bg }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(circle at 50% 50%, ${COLORS.red}18 0%, transparent 60%)`,
+        opacity: glowPulse,
+      }} />
+      <DustParticles frame={frame} count={14} />
+      <FilmGrain frame={frame} intensity={0.06} />
+      <Vignette frame={frame} intensity={0.92} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: "0 100px" }}>
+        <div style={{ textAlign: "center", maxWidth: 880 }}>
+          <div style={{
+            fontFamily: FONTS.mono, fontSize: 18, letterSpacing: 5,
+            color: accentColor, marginBottom: 30, opacity: labelOpacity,
+            textTransform: "uppercase",
+          }}>
+            {scene.label || "HARGA — NON-MONETER"}
+          </div>
+          <div style={{
+            fontFamily: FONTS.serif, fontSize: 46, color: COLORS.text,
+            lineHeight: 1.4, opacity: priceOpacity,
+            transform: `scale(${priceScale})`,
+            textShadow: `0 0 40px ${accentColor}30`,
+          }}>
+            <TypewriterText
+              text={scene.priceLabel || scene.text || ""}
+              frame={frame}
+              startFrame={15}
+              speed={scene.textSpeed || "slow"}
+              accentColor={accentColor}
+              sceneDuration={dur}
+            />
+          </div>
+          {scene.riskStatus && (
+            <div style={{
+              fontFamily: FONTS.mono, fontSize: 17, letterSpacing: 2,
+              color: COLORS.red, marginTop: 34,
+              opacity: interpolate(frame, [dur * 0.55, dur * 0.75], [0, 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }),
+            }}>
+              STATUS RISIKO: {scene.riskStatus}
+            </div>
+          )}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ─── Scene: QUOTE (kutipan dramatis besar) ───────────────────────────────────
+
+const QuoteScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const dur = scene.duration || 150;
+  const textOpacity = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: "clamp" });
+  const quoteScale = spring({ frame, fps, config: { damping: 30, stiffness: 60 }, from: 0.96, to: 1 });
+
+  return (
+    <AbsoluteFill style={{ background: COLORS.bg }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(circle at 50% 40%, ${accentColor}0E 0%, transparent 60%)`,
+      }} />
+      <DustParticles frame={frame} count={12} />
+      <FilmGrain frame={frame} intensity={0.05} />
+      <Vignette frame={frame} intensity={0.9} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: "0 110px" }}>
+        <div style={{ opacity: textOpacity, textAlign: "center", maxWidth: 860, transform: `scale(${quoteScale})` }}>
+          <div style={{
+            fontFamily: FONTS.serif, fontSize: 110, color: accentColor,
+            opacity: 0.18, lineHeight: 0.4, marginBottom: 10,
+          }}>“</div>
+          <div style={{
+            fontFamily: FONTS.serif, fontSize: 40, color: COLORS.text,
+            lineHeight: 1.55, fontStyle: "italic",
+          }}>
+            <TypewriterText
+              text={scene.text || ""}
+              frame={frame}
+              startFrame={12}
+              speed={scene.textSpeed || "slow"}
+              glitchWords={scene.glitchWords}
+              accentColor={accentColor}
+              sceneDuration={dur}
+            />
+          </div>
+          {scene.source && (
+            <div style={{
+              fontFamily: FONTS.mono, fontSize: 16, color: COLORS.sepia, marginTop: 28,
+              opacity: interpolate(frame, [dur * 0.55, dur * 0.75], [0, 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }),
+            }}>— {scene.source}</div>
+          )}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
   const {
     scenes = [],
@@ -1167,6 +1482,7 @@ export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
     accentColor = COLORS.accent,
     lotNumber,
     category = "dark_obsession",
+    partLabel,
   } = props;
 
   const { fps } = useVideoConfig();
@@ -1204,9 +1520,37 @@ export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
             {scene.type === "seal" && (
               <SealScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} curatorImageUrl={curatorImageUrl} lotNumber={lotNumber} />
             )}
+            {scene.type === "fact" && (
+              <FactScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} objectImageUrl={objectImageUrl} objectVideoUrl={objectVideoUrl} />
+            )}
+            {scene.type === "context" && (
+              <ContextScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
+            {scene.type === "lesson" && (
+              <LessonScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
+            {scene.type === "price" && (
+              <PriceScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
+            {scene.type === "quote" && (
+              <QuoteScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
           </Sequence>
         );
       })}
+
+      {/* Badge bagian (multi-part) di pojok kanan atas */}
+      {partLabel && (
+        <div style={{
+          position: "absolute", top: 28, right: 32,
+          fontFamily: FONTS.mono, fontSize: 16, letterSpacing: 2,
+          color: accentColor, opacity: 0.75,
+          border: `1px solid ${accentColor}40`, padding: "4px 12px",
+          borderRadius: 2, background: "rgba(10,8,5,0.5)",
+        }}>
+          {partLabel}
+        </div>
+      )}
     </AbsoluteFill>
   );
 };
