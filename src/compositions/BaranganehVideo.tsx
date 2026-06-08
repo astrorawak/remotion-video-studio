@@ -77,7 +77,7 @@ const TypewriterText: React.FC<{
   glitchWords?: string[];
   accentColor?: string;
 }> = ({ text, frame, startFrame = 0, speed = "normal", style, glitchWords = [], accentColor = COLORS.accent }) => {
-  const charsPerFrame = speed === "slow" ? 0.8 : speed === "fast" ? 4 : 2;
+  const charsPerFrame = speed === "slow" ? 0.35 : speed === "fast" ? 1.2 : 0.65;
   const elapsed = Math.max(0, frame - startFrame);
   const visibleChars = Math.floor(elapsed * charsPerFrame);
   const visibleText = text.slice(0, visibleChars);
@@ -93,17 +93,19 @@ const TypewriterText: React.FC<{
         const glitchColor = isGlitch && frame % 12 < 3 ? "#FF4444" : undefined;
 
         return (
-          <span
-            key={i}
-            style={{
-              color: isGlitch ? (glitchColor || accentColor) : undefined,
-              transform: `translateX(${glitchOffset}px)`,
-              display: "inline-block",
-              textShadow: isGlitch ? `0 0 8px ${accentColor}` : undefined,
-            }}
-          >
-            {word}{i < words.length - 1 ? " " : ""}
-          </span>
+          <React.Fragment key={i}>
+            <span
+              style={{
+                color: isGlitch ? (glitchColor || accentColor) : undefined,
+                transform: `translateX(${glitchOffset}px)`,
+                display: "inline-block",
+                textShadow: isGlitch ? `0 0 8px ${accentColor}` : undefined,
+              }}
+            >
+              {word}
+            </span>
+            {i < words.length - 1 ? " " : ""}
+          </React.Fragment>
         );
       })}
       {/* Cursor berkedip */}
