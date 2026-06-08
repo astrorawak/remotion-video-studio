@@ -630,6 +630,66 @@ const MCP_TOOLS = [
       required: ['scenes'],
     },
   },
+  {
+    name: 'render_ai_character_video',
+    description: 'Buat video animasi dengan karakter/ilustrasi yang di-generate oleh AI (Replicate Flux). Ideal untuk video tentang tokoh terkenal, entrepreneur, selebriti, dll. AI akan generate ilustrasi karakter berdasarkan deskripsi, lalu animasikan dalam video profesional.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        characterDescription: {
+          type: 'string',
+          description: 'Deskripsi karakter yang akan di-generate AI. Contoh: "tech billionaire entrepreneur, short hair, wearing casual black tshirt, confident smile, professional portrait". Semakin detail semakin bagus.',
+        },
+        characterName: {
+          type: 'string',
+          description: 'Nama karakter yang akan ditampilkan di video. Contoh: "Elon Musk"',
+        },
+        characterTitle: {
+          type: 'string',
+          description: 'Jabatan/title karakter. Contoh: "CEO Tesla & SpaceX"',
+        },
+        scenes: {
+          type: 'array',
+          description: 'Array scene video. Setiap scene memiliki type dan konten.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['intro', 'character', 'stat', 'comparison', 'list', 'outro'],
+                description: 'Jenis scene: intro=pembuka, character=tampilkan karakter, stat=angka besar, comparison=perbandingan, list=daftar item, outro=penutup',
+              },
+              title: { type: 'string', description: 'Judul scene' },
+              subtitle: { type: 'string', description: 'Subjudul atau deskripsi' },
+              value: { type: 'string', description: 'Nilai utama (untuk stat scene). Contoh: "$250"' },
+              unit: { type: 'string', description: 'Satuan (untuk stat scene). Contoh: "BILLION"' },
+              description: { type: 'string', description: 'Deskripsi tambahan' },
+              items: { type: 'array', items: { type: 'string' }, description: 'Daftar item (untuk list scene)' },
+              label1: { type: 'string', description: 'Label bar pertama (untuk comparison scene)' },
+              label2: { type: 'string', description: 'Label bar kedua (untuk comparison scene)' },
+              value1: { type: 'number', description: 'Nilai bar pertama (untuk comparison scene)' },
+              value2: { type: 'number', description: 'Nilai bar kedua (untuk comparison scene)' },
+              duration: { type: 'number', description: 'Durasi scene dalam frame (30 frame = 1 detik). Default: 90 (3 detik)' },
+            },
+          },
+        },
+        bgColor: {
+          type: 'string',
+          description: 'Warna background hex. Default: #0a0a1a (hitam gelap)',
+        },
+        accentColor: {
+          type: 'string',
+          description: 'Warna aksen hex. Default: #f97316 (oranye)',
+        },
+        imageStyle: {
+          type: 'string',
+          enum: ['illustration', 'realistic', 'cartoon', 'anime', 'oil_painting', 'digital_art'],
+          description: 'Gaya ilustrasi AI. Default: illustration',
+        },
+      },
+      required: ['characterDescription', 'characterName', 'scenes'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -996,6 +1056,142 @@ Buat rencana animasi dalam format JSON array:
     startRender(renderId, 'CharacterAnimation', { scenes, characterName, characterTitle, bgColor, accentColor, background }, baseUrl, Math.max(3000, durationInFrames * 30), 5);
     const charTypes = [...new Set(scenes.map(s => s.character))].join(', ');
     return `✅ **Character Animation dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n👤 **Karakter**: ${charTypes}\n🎬 **Jumlah Scene**: ${scenes.length} scene (${totalDuration} detik video)\n${characterName ? `🏷️ **Nama**: ${characterName}\n` : ''}${characterTitle ? `💼 **Jabatan**: ${characterTitle}\n` : ''}⏱️ Estimasi render: ${estimatedSec}-${estimatedSec * 2} detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
+  }
+  // render_ai_character_video
+  if (name === 'render_ai_character_video') {
+    const {
+      characterDescription,
+      characterName = 'Character',
+      characterTitle = '',
+      scenes = [],
+      bgColor = '#0a0a1a',
+      accentColor = '#f97316',
+      imageStyle = 'illustration',
+    } = args;
+
+    if (!characterDescription) throw new Error('characterDescription diperlukan. Deskripsikan karakter yang ingin di-generate.');
+    if (!scenes.length) throw new Error('scenes tidak boleh kosong. Tambahkan minimal 1 scene.');
+
+    const renderId = randomUUID();
+    renderJobs[renderId] = { status: 'processing', progress: 0, message: '🎨 Generating AI character illustration...' };
+
+    // Proses async: generate gambar dulu, lalu render video
+    (async () => {
+      try {
+        const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+        if (!REPLICATE_TOKEN) throw new Error('REPLICATE_API_TOKEN tidak tersedia di server');
+
+        // Build prompt berdasarkan style
+        const styleMap = {
+          illustration: 'digital illustration, clean vector art style, professional',
+          realistic: 'photorealistic, professional photography, studio lighting',
+          cartoon: 'cartoon style, vibrant colors, clean lines',
+          anime: 'anime style, detailed, colorful',
+          oil_painting: 'oil painting style, artistic, detailed brushwork',
+          digital_art: 'digital art, concept art, detailed',
+        };
+        const stylePrompt = styleMap[imageStyle] || styleMap.illustration;
+        const fullPrompt = `${characterDescription}, ${stylePrompt}, portrait, upper body, white or transparent background, high quality`;
+
+        renderJobs[renderId].message = '🎨 Mengirim request ke Replicate AI...';
+        renderJobs[renderId].progress = 10;
+
+        // Call Replicate API
+        const replicateRes = await fetch('https://api.replicate.com/v1/predictions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${REPLICATE_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            version: 'black-forest-labs/flux-schnell',
+            input: {
+              prompt: fullPrompt,
+              num_outputs: 1,
+              aspect_ratio: '3:4',
+              output_format: 'webp',
+              output_quality: 85,
+            },
+          }),
+        });
+
+        const prediction = await replicateRes.json();
+        if (!prediction.id) throw new Error(`Replicate error: ${JSON.stringify(prediction)}`);
+
+        renderJobs[renderId].message = '⏳ AI sedang menggambar karakter...';
+        renderJobs[renderId].progress = 20;
+
+        // Poll Replicate untuk hasil
+        let imageUrl = null;
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+          });
+          const pollData = await pollRes.json();
+
+          if (pollData.status === 'succeeded') {
+            imageUrl = Array.isArray(pollData.output) ? pollData.output[0] : pollData.output;
+            break;
+          } else if (pollData.status === 'failed') {
+            throw new Error(`Replicate generation failed: ${pollData.error}`);
+          }
+
+          renderJobs[renderId].progress = Math.min(50, 20 + i * 0.5);
+        }
+
+        if (!imageUrl) throw new Error('Timeout: AI tidak berhasil generate gambar dalam 2 menit');
+
+        renderJobs[renderId].message = '🎬 Gambar berhasil! Memulai render video...';
+        renderJobs[renderId].progress = 55;
+
+        // Hitung total durasi
+        const totalFrames = Math.max(120, scenes.reduce((acc, s) => acc + (s.duration || 90), 0));
+        const timeoutMs = Math.max(5000, totalFrames * 50);
+
+        // Render video dengan gambar AI
+        const videoRenderId = randomUUID();
+        startRender(videoRenderId, 'AICharacterVideo', {
+          scenes,
+          bgColor,
+          accentColor,
+          textColor: '#ffffff',
+          characterImageUrl: imageUrl,
+          characterName,
+          characterTitle,
+        }, baseUrl, timeoutMs, 5);
+
+        // Monitor render video
+        for (let i = 0; i < 120; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const videoJob = renderJobs[videoRenderId];
+          if (!videoJob) break;
+
+          if (videoJob.status === 'done') {
+            renderJobs[renderId] = {
+              status: 'done',
+              progress: 100,
+              downloadUrl: videoJob.downloadUrl,
+              fileSize: videoJob.fileSize,
+              message: 'Video selesai!',
+              characterImageUrl: imageUrl,
+            };
+            break;
+          } else if (videoJob.status === 'error') {
+            throw new Error(videoJob.error);
+          }
+
+          renderJobs[renderId].progress = Math.min(95, 55 + i * 0.3);
+          renderJobs[renderId].message = `🎬 Rendering video... ${videoJob?.progress || 0}%`;
+        }
+
+      } catch (err) {
+        renderJobs[renderId] = { status: 'error', error: err.message };
+      }
+    })();
+
+    const sceneTypes = scenes.map(s => s.type).join(', ');
+    return `✅ **AI Character Video dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎨 **Karakter**: ${characterName}\n💼 **Jabatan**: ${characterTitle}\n🖼️ **Style**: ${imageStyle}\n🎬 **Scenes**: ${scenes.length} scene (${sceneTypes})\n⏱️ Estimasi: 60-120 detik (generate AI + render video)\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
   // check_render_status
   if (name === 'check_render_status') {
