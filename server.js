@@ -725,8 +725,8 @@ const MCP_TOOLS = [
             properties: {
               type: {
                 type: 'string',
-                enum: ['hook', 'object_reveal', 'catalog', 'anomaly', 'implication', 'chapter', 'seal'],
-                description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis, catalog=deskripsi dingin objek, anomaly=inti narasi+kurator, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand',
+                enum: ['hook', 'object_reveal', 'object_focus', 'catalog', 'anomaly', 'implication', 'chapter', 'seal'],
+                description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis dgn spotlight, object_focus=objek FULL-SCREEN dominan dgn slow zoom (WAJIB pakai ini agar objek terlihat besar & jelas, render video bergerak jika animateWithAI true), catalog=deskripsi dingin objek di samping gambar, anomaly=inti narasi+kurator+objek, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand',
               },
               text: { type: 'string', description: 'Teks narasi utama scene' },
               subtext: { type: 'string', description: 'Teks sekunder/metadata' },

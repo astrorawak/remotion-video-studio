@@ -6,6 +6,7 @@ import {
   interpolate,
   spring,
   Img,
+  OffthreadVideo,
   Sequence,
   staticFile,
 } from "remotion";
@@ -20,7 +21,8 @@ export type BaranganehScene = {
     | "implication" // hubungan ke masa kini, pertanyaan retoris
     | "seal"        // penutup brand
     | "chapter"     // pembatas bab — judul bab baru
-    | "object_reveal"; // reveal objek dramatis dengan efek spotlight
+    | "object_reveal" // reveal objek dramatis dengan efek spotlight
+    | "object_focus"; // objek full-screen dominan dengan slow zoom (video jika tersedia)
   text?: string;           // teks narasi utama
   subtext?: string;        // teks sekunder
   lotNumber?: string;      // nomor lot, misal "LOT #247"
@@ -197,6 +199,35 @@ const DustParticles: React.FC<{ frame: number; count?: number }> = ({ frame, cou
       })}
     </>
   );
+};
+
+// ─── Utility: ObjectMedia (Video jika ada, Gambar jika tidak) ────────────────
+// Menampilkan objek sebagai video bergerak (WAN i2v) bila objectVideoUrl tersedia,
+// jika tidak, fallback ke gambar diam. Objek adalah bintang utama konten @baranganeh.
+
+const ObjectMedia: React.FC<{
+  imageUrl?: string;
+  videoUrl?: string;
+  style?: React.CSSProperties;
+}> = ({ imageUrl, videoUrl, style }) => {
+  if (videoUrl) {
+    return (
+      <OffthreadVideo
+        src={videoUrl}
+        muted
+        style={{ width: "100%", height: "100%", objectFit: "cover", ...style }}
+      />
+    );
+  }
+  if (imageUrl) {
+    return (
+      <Img
+        src={imageUrl}
+        style={{ width: "100%", height: "100%", objectFit: "cover", ...style }}
+      />
+    );
+  }
+  return null;
 };
 
 // ─── Background Scenes ───────────────────────────────────────────────────────
@@ -412,7 +443,7 @@ const ObjectRevealScene: React.FC<{
 
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
         {/* Objek */}
-        {objectImageUrl && (
+        {(objectImageUrl || objectVideoUrl) && (
           <div style={{
             opacity: imageOpacity,
             transform: `scale(${imageScale}) translateY(${floatY}px)`,
@@ -436,18 +467,19 @@ const ObjectRevealScene: React.FC<{
               transform: `rotate(-${frame * 0.2}deg)`,
             }} />
 
-            {/* Gambar objek */}
+            {/* Media objek — video bergerak (WAN i2v) atau gambar */}
             <div style={{
-              width: 380,
-              height: 440,
+              width: 460,
+              height: 540,
               borderRadius: 16,
               overflow: "hidden",
               boxShadow: `0 0 60px ${accentColor}${Math.floor(glowPulse * 40).toString(16).padStart(2,'0')}, 0 0 120px rgba(0,0,0,0.8)`,
               border: `1px solid ${accentColor}40`,
             }}>
-              <Img
-                src={objectImageUrl}
-                style={{ width: "100%", height: "100%", objectFit: "cover", filter: "sepia(20%) contrast(1.1)" }}
+              <ObjectMedia
+                imageUrl={objectImageUrl}
+                videoUrl={objectVideoUrl}
+                style={{ filter: "sepia(20%) contrast(1.1)" }}
               />
             </div>
 
@@ -504,8 +536,9 @@ const CatalogScene: React.FC<{
   fps: number;
   accentColor: string;
   objectImageUrl?: string;
+  objectVideoUrl?: string;
   curatorImageUrl?: string;
-}> = ({ scene, frame, fps, accentColor, objectImageUrl, curatorImageUrl }) => {
+}> = ({ scene, frame, fps, accentColor, objectImageUrl, objectVideoUrl, curatorImageUrl }) => {
   const flickerBrightness = useCandleFlicker(frame);
   const bgScale = interpolate(frame, [0, scene.duration || 90], [1, 1.03], { extrapolateRight: "clamp" });
 
@@ -583,23 +616,23 @@ const CatalogScene: React.FC<{
           )}
         </div>
 
-        {/* Panel kanan — gambar objek */}
-        {objectImageUrl && (
+        {/* Panel kanan — media objek (video/gambar) */}
+        {(objectImageUrl || objectVideoUrl) && (
           <div style={{
             opacity: objOpacity,
             transform: `translateX(${objX}px) translateY(${floatY}px)`,
             flexShrink: 0,
           }}>
             <div style={{
-              width: 300,
-              height: 360,
+              width: 340,
+              height: 410,
               borderRadius: 12,
               overflow: "hidden",
               border: `1px solid ${accentColor}40`,
               boxShadow: `0 0 40px rgba(0,0,0,0.8), 0 0 20px ${accentColor}20`,
               filter: "sepia(15%) contrast(1.05)",
             }}>
-              <Img src={objectImageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <ObjectMedia imageUrl={objectImageUrl} videoUrl={objectVideoUrl} />
             </div>
           </div>
         )}
@@ -617,7 +650,8 @@ const AnomalyScene: React.FC<{
   accentColor: string;
   curatorImageUrl?: string;
   objectImageUrl?: string;
-}> = ({ scene, frame, fps, accentColor, curatorImageUrl, objectImageUrl }) => {
+  objectVideoUrl?: string;
+}> = ({ scene, frame, fps, accentColor, curatorImageUrl, objectImageUrl, objectVideoUrl }) => {
   const flickerBrightness = useCandleFlicker(frame);
   const bgScale = interpolate(frame, [0, scene.duration || 120], [1, 1.05], { extrapolateRight: "clamp" });
 
@@ -718,8 +752,8 @@ const AnomalyScene: React.FC<{
             />
           </div>
 
-          {/* Gambar objek kecil di pojok */}
-          {objectImageUrl && (
+          {/* Media objek kecil di pojok */}
+          {(objectImageUrl || objectVideoUrl) && (
             <div style={{
               marginTop: 30,
               opacity: interpolate(frame, [60, 80], [0, 1], { extrapolateRight: "clamp" }),
@@ -728,14 +762,14 @@ const AnomalyScene: React.FC<{
               gap: 16,
             }}>
               <div style={{
-                width: 70,
-                height: 85,
+                width: 90,
+                height: 110,
                 borderRadius: 8,
                 overflow: "hidden",
                 border: `1px solid ${accentColor}30`,
                 filter: "sepia(20%)",
               }}>
-                <Img src={objectImageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <ObjectMedia imageUrl={objectImageUrl} videoUrl={objectVideoUrl} />
               </div>
               {scene.subtext && (
                 <div style={{
@@ -917,6 +951,94 @@ const ChapterScene: React.FC<{
   );
 };
 
+// ─── Scene: OBJECT FOCUS ─────────────────────────────────────────────────────
+// Objek full-screen dominan dengan slow zoom (Ken Burns). Render video bila tersedia.
+
+const ObjectFocusScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+  objectImageUrl?: string;
+  objectVideoUrl?: string;
+  lotNumber?: string;
+}> = ({ scene, frame, fps, accentColor, objectImageUrl, objectVideoUrl, lotNumber }) => {
+  const duration = scene.duration || 120;
+
+  // Slow Ken Burns zoom-in pada objek
+  const zoom = interpolate(frame, [0, duration], [1.0, 1.12], { extrapolateRight: "clamp" });
+  const panX = interpolate(frame, [0, duration], [-1.5, 1.5], { extrapolateRight: "clamp" });
+  const mediaOpacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
+  const fadeOut = interpolate(frame, [duration - 18, duration], [1, 0], { extrapolateRight: "clamp" });
+
+  // Label naik dari bawah
+  const labelOpacity = interpolate(frame, [25, 50], [0, 1], { extrapolateRight: "clamp" });
+  const labelY = spring({ frame: frame - 25, fps, config: { damping: 30, stiffness: 60 }, from: 20, to: 0 });
+
+  // Scan line halus
+  const scanLineY = (frame * 5) % 1350;
+
+  return (
+    <AbsoluteFill style={{ background: "#000", opacity: fadeOut }}>
+      {/* Media objek full-screen */}
+      {(objectImageUrl || objectVideoUrl) && (
+        <AbsoluteFill style={{
+          opacity: mediaOpacity,
+          transform: `scale(${zoom}) translateX(${panX}%)`,
+          transformOrigin: "center",
+        }}>
+          <ObjectMedia
+            imageUrl={objectImageUrl}
+            videoUrl={objectVideoUrl}
+            style={{ filter: "sepia(18%) contrast(1.12) brightness(0.92)" }}
+          />
+        </AbsoluteFill>
+      )}
+
+      {/* Scan line */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, top: scanLineY, height: 2,
+        background: `rgba(201,168,76,0.04)`, pointerEvents: "none",
+      }} />
+
+      <FilmGrain frame={frame} intensity={0.06} />
+      <Vignette frame={frame} intensity={0.92} />
+
+      {/* Lot number atas */}
+      {lotNumber && (
+        <div style={{
+          position: "absolute", top: 60, left: 80,
+          fontFamily: FONTS.mono, fontSize: 14, letterSpacing: 6,
+          color: COLORS.sepia, textTransform: "uppercase",
+          opacity: labelOpacity,
+        }}>
+          {lotNumber} — OBJEK
+        </div>
+      )}
+
+      {/* Label objek bawah */}
+      {(scene.text || scene.subtext) && (
+        <div style={{
+          position: "absolute", bottom: 90, left: 80, right: 80,
+          opacity: labelOpacity, transform: `translateY(${labelY}px)`,
+        }}>
+          <div style={{ width: 50, height: 2, background: accentColor, marginBottom: 16, boxShadow: `0 0 10px ${accentColor}` }} />
+          {scene.text && (
+            <div style={{ fontFamily: FONTS.serif, fontSize: 30, color: COLORS.text, fontStyle: "italic", lineHeight: 1.4 }}>
+              {scene.text}
+            </div>
+          )}
+          {scene.subtext && (
+            <div style={{ marginTop: 12, fontFamily: FONTS.mono, fontSize: 14, letterSpacing: 1, color: COLORS.sepia, lineHeight: 1.7 }}>
+              {scene.subtext}
+            </div>
+          )}
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};
+
 // ─── Scene: SEAL ─────────────────────────────────────────────────────────────
 
 const SealScene: React.FC<{
@@ -1063,10 +1185,13 @@ export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
               <ObjectRevealScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} objectImageUrl={objectImageUrl} objectVideoUrl={objectVideoUrl} />
             )}
             {scene.type === "catalog" && (
-              <CatalogScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} objectImageUrl={objectImageUrl} curatorImageUrl={curatorImageUrl} />
+              <CatalogScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} objectImageUrl={objectImageUrl} objectVideoUrl={objectVideoUrl} curatorImageUrl={curatorImageUrl} />
             )}
             {scene.type === "anomaly" && (
-              <AnomalyScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} curatorImageUrl={curatorImageUrl} objectImageUrl={objectImageUrl} />
+              <AnomalyScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} curatorImageUrl={curatorImageUrl} objectImageUrl={objectImageUrl} objectVideoUrl={objectVideoUrl} />
+            )}
+            {scene.type === "object_focus" && (
+              <ObjectFocusScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} objectImageUrl={objectImageUrl} objectVideoUrl={objectVideoUrl} lotNumber={lotNumber} />
             )}
             {scene.type === "implication" && (
               <ImplicationScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} curatorImageUrl={curatorImageUrl} />
