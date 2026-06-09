@@ -725,7 +725,7 @@ const MCP_TOOLS = [
             properties: {
               type: {
                 type: 'string',
-                enum: ['hook', 'object_reveal', 'object_focus', 'catalog', 'anomaly', 'implication', 'chapter', 'seal', 'fact', 'context', 'lesson', 'price', 'quote'],
+                enum: ['hook', 'object_reveal', 'object_focus', 'catalog', 'anomaly', 'implication', 'chapter', 'seal', 'fact', 'context', 'lesson', 'price', 'quote', 'info_box', 'highlight'],
                 description: 'hook=pernyataan mustahil 3 detik, object_reveal=reveal objek dramatis dgn spotlight, object_focus=objek FULL-SCREEN dominan dgn slow zoom (WAJIB pakai minimal 1x agar objek terlihat besar & jelas, render video bergerak jika animateWithAI true), catalog=deskripsi dingin objek di samping gambar, anomaly=inti narasi+kurator+objek, implication=pertanyaan retoris, chapter=pembatas bab, seal=penutup brand, fact=fakta+label sumber dgn objek di samping (untuk konten kaya data), context=latar sejarah naratif panjang, lesson=ilmu kehidupan/refleksi filosofis, price=harga non-moneter konsep @baranganeh, quote=kutipan dramatis besar',
               },
               text: { type: 'string', description: 'Teks narasi utama scene. Untuk video panjang 1-2 menit, isi dengan kalimat bermakna & informatif.' },
@@ -739,6 +739,7 @@ const MCP_TOOLS = [
               priceLabel: { type: 'string', description: 'Untuk scene type=price: teks harga non-moneter. Contoh: "Lima tahun ingatan masa kecil Anda"' },
               riskStatus: { type: 'string', description: 'Untuk scene type=price: status risiko. Contoh: "TIDAK DAPAT DIUKUR", "TINGGI"' },
               label: { type: 'string', description: 'Eyebrow label kecil di atas scene (fact/context/lesson/price). Contoh: "FAKTA", "KONTEKS", "REFLEKSI"' },
+              highlightWords: { type: 'array', items: { type: 'string' }, description: 'Untuk scene type=highlight: array kata-kata yang akan di-highlight/stabilo. Contoh: ["mustahil", "tidak ada"]' },
             },
             required: ['type', 'text'],
           },

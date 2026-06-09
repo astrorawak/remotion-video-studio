@@ -27,7 +27,9 @@ export type BaranganehScene = {
     | "context"     // latar sejarah/konteks, teks naratif panjang
     | "lesson"      // ilmu kehidupan / refleksi filosofis
     | "price"       // harga non-moneter (konsep @baranganeh)
-    | "quote";      // kutipan dramatis, teks besar italic
+    | "quote"       // kutipan dramatis, teks besar italic
+    | "info_box"    // kotak informasi dengan efek blur-in, fade-in, float
+    | "highlight";  // teks dengan highlight/stabilo pada kata-kata kunci
   text?: string;           // teks narasi utama
   subtext?: string;        // teks sekunder
   lotNumber?: string;      // nomor lot, misal "LOT #247"
@@ -44,6 +46,7 @@ export type BaranganehScene = {
   priceLabel?: string;     // untuk scene price: harga non-moneter
   riskStatus?: string;     // untuk scene price: status risiko
   label?: string;          // label kecil di atas scene (eyebrow), misal "FAKTA", "KONTEKS"
+  highlightWords?: string[]; // kata-kata yang akan di-highlight (untuk scene highlight)
 };
 
 export type BaranganehVideoProps = {
@@ -252,6 +255,140 @@ const ObjectMedia: React.FC<{
     );
   }
   return null;
+};
+
+// ─── Utility: Animated Pill Box ─────────────────────────────────────────────
+// Kotak dengan efek blur-in, fade-in, float, dan breathing scale
+
+const AnimatedPillBox: React.FC<{
+  text: string;
+  frame: number;
+  startFrame?: number;
+  duration?: number;
+  color?: string;
+  accentColor?: string;
+  style?: React.CSSProperties;
+}> = ({ text, frame, startFrame = 0, duration = 120, color = COLORS.bgLight, accentColor = COLORS.accent, style }) => {
+  const relFrame = Math.max(0, frame - startFrame);
+  const progress = Math.min(1, relFrame / 30); // 30 frame untuk blur-in
+  
+  // Blur-in effect
+  const blur = interpolate(progress, [0, 1], [15, 0]);
+  
+  // Fade-in
+  const opacity = interpolate(progress, [0, 0.5, 1], [0, 0.3, 1]);
+  
+  // Slide up
+  const translateY = interpolate(progress, [0, 1], [20, 0]);
+  
+  // Floating bob (naik-turun halus)
+  const float = Math.sin(relFrame * 0.05) * 3;
+  
+  // Breathing scale (pulsing)
+  const breathing = 1 + Math.sin(relFrame * 0.04) * 0.02;
+  
+  return (
+    <div style={{
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      transform: `translate(-50%, -50%) translateY(${translateY + float}px) scale(${breathing})`,
+      padding: "16px 24px",
+      background: color,
+      border: `2px solid ${accentColor}`,
+      borderRadius: "50px",
+      color: COLORS.text,
+      fontSize: "18px",
+      fontFamily: FONTS.serif,
+      fontWeight: "normal",
+      textAlign: "center",
+      whiteSpace: "nowrap",
+      opacity,
+      filter: `blur(${blur}px)`,
+      boxShadow: `0 0 30px rgba(${parseInt(accentColor.slice(1, 3), 16)}, ${parseInt(accentColor.slice(3, 5), 16)}, ${parseInt(accentColor.slice(5, 7), 16)}, 0.3)`,
+      ...style,
+    }}>
+      {text}
+    </div>
+  );
+};
+
+// ─── Utility: Motion Background ──────────────────────────────────────────────
+// Gradien warna yang bergerak halus
+
+const MotionBackground: React.FC<{
+  frame: number;
+  colors?: [string, string, string];
+}> = ({ frame, colors = ["#0A0805", "#12100C", "#1A1410"] }) => {
+  const position = (frame * 0.5) % 100;
+  
+  return (
+    <div style={{
+      position: "absolute",
+      inset: 0,
+      background: `
+        linear-gradient(45deg,
+          ${colors[0]} ${position}%,
+          ${colors[1]} ${position + 30}%,
+          ${colors[2]} ${position + 60}%
+        )
+      `,
+      backgroundSize: "200% 200%",
+      animation: "none",
+    }} />
+  );
+};
+
+// ─── Utility: Text Highlight ────────────────────────────────────────────────
+// Highlight teks dengan warna (stabilo effect)
+
+const TextHighlight: React.FC<{
+  text: string;
+  highlightWords?: string[];
+  frame: number;
+  startFrame?: number;
+  color?: string;
+  accentColor?: string;
+  style?: React.CSSProperties;
+}> = ({ text, highlightWords = [], frame, startFrame = 0, color = COLORS.text, accentColor = COLORS.accent, style }) => {
+  const relFrame = Math.max(0, frame - startFrame);
+  const progress = Math.min(1, relFrame / 20); // 20 frame untuk reveal
+  
+  // Highlight animation — expand dari kiri ke kanan
+  const highlightWidth = interpolate(progress, [0, 1], [0, 100]);
+  
+  const words = text.split(" ");
+  
+  return (
+    <div style={{
+      position: "relative",
+      display: "inline-block",
+      ...style,
+    }}>
+      {words.map((word, idx) => {
+        const isHighlighted = highlightWords.some(hw => word.toLowerCase().includes(hw.toLowerCase()));
+        return (
+          <span key={idx} style={{
+            position: "relative",
+            marginRight: "0.3em",
+            color: isHighlighted ? "#000" : color,
+          }}>
+            {isHighlighted && (
+              <span style={{
+                position: "absolute",
+                inset: "-2px -4px",
+                background: accentColor,
+                borderRadius: "4px",
+                opacity: progress,
+                zIndex: -1,
+              }} />
+            )}
+            {word}
+          </span>
+        );
+      })}
+    </div>
+  );
 };
 
 // ─── Background Scenes ───────────────────────────────────────────────────────
@@ -1472,6 +1609,90 @@ const QuoteScene: React.FC<{
   );
 };
 
+// ─── Scene: INFO_BOX ─────────────────────────────────────────────────────────
+
+const InfoBoxScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const flickerBrightness = useCandleFlicker(frame);
+  const duration = scene.duration || 120;
+  const fadeOut = interpolate(frame, [duration - 20, duration], [1, 0], { extrapolateRight: "clamp" });
+
+  return (
+    <AbsoluteFill style={{ background: COLORS.bg }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(ellipse at center, rgba(201,168,76,${0.06 * flickerBrightness}) 0%, transparent 60%)`,
+      }} />
+
+      <FilmGrain frame={frame} intensity={0.06} />
+      <Vignette frame={frame} intensity={0.8} />
+      <DustParticles frame={frame} count={15} />
+
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", opacity: fadeOut }}>
+        <AnimatedPillBox
+          text={scene.text || ""}
+          frame={frame}
+          startFrame={0}
+          duration={duration}
+          color={COLORS.bgLight}
+          accentColor={accentColor}
+        />
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ─── Scene: HIGHLIGHT ────────────────────────────────────────────────────────
+
+const HighlightScene: React.FC<{
+  scene: BaranganehScene;
+  frame: number;
+  fps: number;
+  accentColor: string;
+}> = ({ scene, frame, fps, accentColor }) => {
+  const flickerBrightness = useCandleFlicker(frame);
+  const duration = scene.duration || 150;
+  const fadeOut = interpolate(frame, [duration - 20, duration], [1, 0], { extrapolateRight: "clamp" });
+  const scale = interpolate(frame, [0, 30], [0.95, 1]);
+
+  return (
+    <AbsoluteFill style={{ background: COLORS.bg }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(ellipse at center, rgba(201,168,76,${0.06 * flickerBrightness}) 0%, transparent 60%)`,
+      }} />
+
+      <FilmGrain frame={frame} intensity={0.05} />
+      <Vignette frame={frame} intensity={0.8} />
+      <DustParticles frame={frame} count={20} />
+
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", opacity: fadeOut, transform: `scale(${scale})` }}>
+        <div style={{ maxWidth: 900, padding: "40px 60px", textAlign: "center" }}>
+          <div style={{
+            fontFamily: FONTS.serif,
+            fontSize: 32,
+            lineHeight: 1.8,
+            color: COLORS.text,
+          }}>
+            <TextHighlight
+              text={scene.text || ""}
+              highlightWords={scene.highlightWords || []}
+              frame={frame}
+              startFrame={20}
+              color={COLORS.text}
+              accentColor={accentColor}
+            />
+          </div>
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
   const {
     scenes = [],
@@ -1534,6 +1755,12 @@ export const BaranganehVideo: React.FC<BaranganehVideoProps> = (props) => {
             )}
             {scene.type === "quote" && (
               <QuoteScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
+            {scene.type === "info_box" && (
+              <InfoBoxScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
+            )}
+            {scene.type === "highlight" && (
+              <HighlightScene scene={scene} frame={frame - startFrame} fps={fps} accentColor={accentColor} />
             )}
           </Sequence>
         );
