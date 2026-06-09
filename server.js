@@ -760,6 +760,77 @@ const MCP_TOOLS = [
       required: ['scenes', 'objectDescription', 'curatorDescription'],
     },
   },
+  {
+    name: 'render_borneo_video',
+    description: 'Buat video dokumenter sinematik untuk channel YouTube BORNEO PRIDE (seri "Silent Witness") tentang tanaman akuatik endemik & hutan Kalimantan. Format LANDSCAPE 16:9 (1920x1080) untuk YouTube long-form berbahasa Inggris. Pipeline: (1) Flux Dev generate gambar spesies/tanaman/landscape, (2) opsional WAN 2.5 i2v animasikan jadi video bergerak, (3) Remotion compose final video dengan teks animasi sinematik + data overlay. Tema visual: hutan hijau + sungai biru + aksen ungu (logo). Cocok untuk environmental storytelling: keindahan alam, data deforestasi, investigasi kebijakan, paradoks. Untuk video panjang gabung beberapa render via partLabel.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        episodeLabel: {
+          type: 'string',
+          description: 'Label episode di pojok. Contoh: "EPISODE 01 — THE RAFFLESIA PARADOX"',
+        },
+        speciesDescription: {
+          type: 'string',
+          description: 'Deskripsi spesies/tanaman/landscape untuk di-generate Flux Dev. Contoh: "Bucephalandra aquatic plant, deep green and purple leaves, growing on rocks in a fast-flowing crystal-clear Borneo river, underwater macro photography, dramatic natural light rays, ultra detailed, cinematic, 8k, national geographic style, no text"',
+        },
+        naturalistDescription: {
+          type: 'string',
+          description: 'Opsional. Deskripsi narator naturalis/botanis untuk di-generate (jarang tampil). Contoh: "field botanist, khaki field jacket, standing in misty Borneo rainforest, documentary style, natural light". Boleh dikosongkan untuk konten murni alam.',
+        },
+        scenes: {
+          type: 'array',
+          description: 'Array scene dokumenter. Setiap scene punya type dan teks bahasa Inggris.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['hook', 'species_reveal', 'species_focus', 'data_fact', 'context', 'investigation', 'paradox', 'comparison', 'lesson', 'quote', 'highlight', 'chapter', 'call_to_action', 'outro'],
+                description: 'hook=pernyataan pembuka memikat (Act 1), species_reveal=reveal spesies dramatis dgn spotlight+label, species_focus=spesies FULL-SCREEN dominan slow-zoom (WAJIB minimal 1x agar visual mendominasi; render video bergerak jika animateWithAI true), data_fact=fakta+angka+sumber dgn media di samping (untuk Act 2 data deforestasi), context=narasi sejarah/ekosistem panjang, investigation=pertanyaan investigatif retoris (Act 3 mode detektif), paradox=kontradiksi kebijakan dramatis (Act 4, warna amber/merah peringatan), comparison=dua angka berdampingan (ekonomi vs lingkungan, before/after), lesson=refleksi naratif, quote=kutipan dramatis (pejabat/ilmuwan), highlight=teks dgn stabilo kata kunci, chapter=pembatas Act, call_to_action=pertanyaan penutup (Act 5, BUKAN ceramah), outro=penutup brand BORNEO PRIDE',
+              },
+              text: { type: 'string', description: 'Teks narasi utama (BAHASA INGGRIS). Untuk video panjang isi kalimat bermakna & informatif.' },
+              subtext: { type: 'string', description: 'Teks sekunder (nama latin spesies, metadata)' },
+              chapterTitle: { type: 'string', description: 'Judul Act/Bab (untuk type chapter)' },
+              duration: { type: 'number', description: 'Durasi dalam frame (24fps). 24=1dtk, 120=5dtk, 168=7dtk, 240=10dtk. Teks muncul perlahan auto-fit, beri durasi cukup. Untuk data_fact/context/paradox teks panjang gunakan 168-240. Default: 120' },
+              textSpeed: { type: 'string', enum: ['slow', 'normal', 'fast'], description: 'Kecepatan typewriter. slow=dramatis(hook/lesson/quote/cta), normal=standar(data_fact). Teks auto-fit selalu terbaca penuh.' },
+              glitchWords: { type: 'array', items: { type: 'string' }, description: 'Kata kunci yang diberi warna aksen + glow. Gunakan untuk angka/kata terpenting.' },
+              factLabel: { type: 'string', description: 'Untuk type=data_fact: label validitas. Contoh: "VERIFIED", "DOCUMENTED", "DISPUTED"' },
+              source: { type: 'string', description: 'Untuk data_fact/paradox/quote/comparison: sumber/atribusi. Contoh: "Auriga Nusantara, 2024", "Global Forest Watch"' },
+              label: { type: 'string', description: 'Eyebrow label kecil di atas scene. Contoh: "THE DATA", "THE PARADOX", "CONTEXT", "WHAT WILL YOU DO?"' },
+              highlightWords: { type: 'array', items: { type: 'string' }, description: 'Untuk type=highlight: kata-kata yang distabilo. Contoh: ["legal", "97%"]' },
+              leftLabel: { type: 'string', description: 'Untuk type=comparison: label kartu kiri (hijau). Contoh: "ECO-TOURISM"' },
+              leftValue: { type: 'string', description: 'Untuk type=comparison: nilai kartu kiri. Contoh: "$2.1M / year"' },
+              rightLabel: { type: 'string', description: 'Untuk type=comparison: label kartu kanan (merah). Contoh: "MINING REVENUE"' },
+              rightValue: { type: 'string', description: 'Untuk type=comparison: nilai kartu kanan. Contoh: "$8.4M / year"' },
+            },
+            required: ['type'],
+          },
+        },
+        accentColor: {
+          type: 'string',
+          description: 'Warna aksen utama hex. Default: #3FA66A (hijau hutan terang). Alternatif: #2E8FA6 (biru sungai) untuk episode bertema air.',
+        },
+        secondaryColor: {
+          type: 'string',
+          description: 'Warna sekunder hex (aksen logo). Default: #7B3FA0 (ungu logo user). Dipakai pada scene investigation & outro.',
+        },
+        animateWithAI: {
+          type: 'boolean',
+          description: 'Jika true, gunakan WAN 2.5 i2v untuk menganimasikan gambar spesies jadi video bergerak (lebih lambat ~5-8 menit, jauh lebih hidup). Jika false, gambar diam dgn Ken Burns (lebih cepat ~3-5 menit). Default: false',
+        },
+        partLabel: {
+          type: 'string',
+          description: 'Opsional. Untuk video multi-bagian yang digabung di CapCut. Contoh: "PART 1/4". Ditampilkan kecil di pojok. Gunakan untuk seri panjang yang dipecah jadi beberapa render.',
+        },
+        seriesName: {
+          type: 'string',
+          description: 'Nama seri di outro. Default: "BORNEO PRIDE"',
+        },
+      },
+      required: ['scenes', 'speciesDescription'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -1459,6 +1530,192 @@ Buat rencana animasi dalam format JSON array:
 🏷️ **Lot**: ${lotNumber} | **Kategori**: ${category}
 🎨 **Pipeline**: Flux Dev (kurator) + Flux Dev (objek)${animateWithAI ? ' + WAN i2v (animasi)' : ''} + Remotion
 🎬 **Scenes**: ${scenes.length} scene: ${sceneTypes}
+⏱️ **Estimasi**: ${estimatedTime}
+
+Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.`;
+  }
+
+  if (name === 'render_borneo_video') {
+    const {
+      episodeLabel = 'EPISODE 01 — THE SILENT WITNESS',
+      speciesDescription,
+      naturalistDescription,
+      scenes,
+      accentColor = '#3FA66A',
+      secondaryColor = '#7B3FA0',
+      animateWithAI = false,
+      partLabel,
+      seriesName = 'BORNEO PRIDE',
+    } = args;
+
+    const renderId = randomUUID();
+    renderJobs[renderId] = { status: 'processing', progress: 0, message: '🌿 Memulai pipeline BORNEO PRIDE...' };
+
+    (async () => {
+      try {
+        const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+        if (!REPLICATE_TOKEN) throw new Error('REPLICATE_API_TOKEN tidak tersedia di server');
+
+        const pollReplicate = async (predId, label, progressMsg) => {
+          if (progressMsg) renderJobs[renderId].message = progressMsg;
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const res = await fetch(`https://api.replicate.com/v1/predictions/${predId}`, {
+              headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+            });
+            const data = await res.json();
+            if (data.status === 'succeeded') {
+              return Array.isArray(data.output) ? data.output[0] : data.output;
+            } else if (data.status === 'failed') {
+              throw new Error(`${label} generation failed: ${data.error}`);
+            }
+          }
+          throw new Error(`Timeout: ${label} tidak selesai dalam 4.5 menit`);
+        };
+
+        // ── Step 1: Generate gambar SPESIES via Flux Dev (landscape 16:9) ──
+        renderJobs[renderId].message = '🌿 [1/3] Menggambar spesies/landscape dengan Flux Dev...';
+        renderJobs[renderId].progress = 6;
+
+        const speciesPrompt = `${speciesDescription}, ultra detailed, cinematic, 8k, national geographic style, dramatic natural lighting, no text, no watermark`;
+
+        const speciesPredRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-dev/predictions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: {
+              prompt: speciesPrompt,
+              num_outputs: 1,
+              aspect_ratio: '16:9',
+              output_format: 'webp',
+              output_quality: 90,
+              num_inference_steps: 28,
+              guidance_scale: 3.5,
+            },
+          }),
+        });
+        const speciesPred = await speciesPredRes.json();
+        if (!speciesPred.id) throw new Error(`Flux Dev species error: ${JSON.stringify(speciesPred)}`);
+
+        let speciesImageUrl = await pollReplicate(speciesPred.id, 'Spesies', '⏳ [1/3] AI sedang menggambar spesies...');
+        renderJobs[renderId].progress = 30;
+        renderJobs[renderId].speciesImageUrl = speciesImageUrl;
+
+        // ── Step 1b (opsional): Generate gambar naturalis ──
+        let naturalistImageUrl = null;
+        if (naturalistDescription) {
+          await new Promise(r => setTimeout(r, 12000));
+          renderJobs[renderId].message = '🧭 [1/3] Menggambar naturalis...';
+          const natPredRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-dev/predictions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: {
+                prompt: `${naturalistDescription}, documentary photography, natural light, ultra detailed, cinematic, no text, no watermark`,
+                num_outputs: 1,
+                aspect_ratio: '3:4',
+                output_format: 'webp',
+                output_quality: 90,
+                num_inference_steps: 28,
+                guidance_scale: 3.5,
+              },
+            }),
+          });
+          const natPred = await natPredRes.json();
+          if (natPred.id) {
+            naturalistImageUrl = await pollReplicate(natPred.id, 'Naturalis', '⏳ [1/3] AI sedang menggambar naturalis...');
+            renderJobs[renderId].naturalistImageUrl = naturalistImageUrl;
+          }
+        }
+        renderJobs[renderId].progress = 42;
+
+        // ── Step 2 (opsional): Animasi via WAN 2.5 i2v ──
+        let speciesVideoUrl = null;
+        if (animateWithAI) {
+          renderJobs[renderId].message = '🎥 [2/3] Menganimasikan spesies dengan WAN 2.5 i2v...';
+          renderJobs[renderId].progress = 48;
+
+          const wanRes = await fetch('https://api.replicate.com/v1/models/wan-video/wan-2.5-i2v-fast/predictions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: {
+                image: speciesImageUrl,
+                prompt: `slow cinematic camera movement, gentle drifting, water flowing gently, light rays moving through the canopy, leaves swaying softly, documentary nature cinematography, peaceful atmosphere`,
+                duration: 5,
+                resolution: '720p',
+                negative_prompt: 'fast movement, blur, distortion, text, watermark',
+                enable_prompt_expansion: true,
+              },
+            }),
+          });
+          const wanPred = await wanRes.json();
+          if (wanPred.id) {
+            speciesVideoUrl = await pollReplicate(wanPred.id, 'WAN i2v', '🎥 [2/3] AI sedang menganimasikan...');
+            renderJobs[renderId].progress = 68;
+            renderJobs[renderId].speciesVideoUrl = speciesVideoUrl;
+          }
+        }
+
+        // ── Step 3: Render final video dengan Remotion ──
+        renderJobs[renderId].message = '🎬 [3/3] Merender video final dengan Remotion (1920x1080)...';
+        renderJobs[renderId].progress = animateWithAI ? 70 : 46;
+
+        const totalFrames = Math.max(240, scenes.reduce((acc, s) => acc + (s.duration || 120), 0));
+        const timeoutMs = Math.max(90000, totalFrames * 100);
+
+        const videoRenderId = randomUUID();
+        startRender(videoRenderId, 'BorneoVideo', {
+          scenes,
+          speciesImageUrl,
+          speciesVideoUrl,
+          naturalistImageUrl,
+          accentColor,
+          secondaryColor,
+          episodeLabel,
+          partLabel,
+          seriesName,
+        }, baseUrl, timeoutMs, 5);
+
+        for (let i = 0; i < 200; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const videoJob = renderJobs[videoRenderId];
+          if (!videoJob) break;
+          if (videoJob.status === 'done') {
+            renderJobs[renderId] = {
+              status: 'done',
+              progress: 100,
+              downloadUrl: videoJob.downloadUrl,
+              fileSize: videoJob.fileSize,
+              message: '✅ Video BORNEO PRIDE selesai!',
+              speciesImageUrl,
+              speciesVideoUrl,
+              naturalistImageUrl,
+            };
+            break;
+          } else if (videoJob.status === 'error') {
+            throw new Error(videoJob.error);
+          }
+          const baseProgress = animateWithAI ? 70 : 46;
+          renderJobs[renderId].progress = Math.min(96, baseProgress + i * 0.25);
+          renderJobs[renderId].message = `🎬 [3/3] Rendering... ${videoJob?.progress || 0}%`;
+        }
+      } catch (err) {
+        renderJobs[renderId] = { status: 'error', error: err.message };
+      }
+    })();
+
+    const sceneTypes = scenes.map(s => s.type).join(' → ');
+    const totalFrames = Math.max(240, scenes.reduce((acc, s) => acc + (s.duration || 120), 0));
+    const estSec = (totalFrames / 24).toFixed(0);
+    const estimatedTime = animateWithAI ? '6-10 menit (dengan animasi AI)' : '3-6 menit';
+    return `🌿 **BORNEO PRIDE Video Pipeline Dimulai!**
+
+📋 **Render ID**: \`${renderId}\`
+🎬 **Episode**: ${episodeLabel}
+📺 **Format**: 1920x1080 (16:9 landscape, YouTube)
+🎨 **Pipeline**: Flux Dev (spesies)${naturalistDescription ? ' + Flux Dev (naturalis)' : ''}${animateWithAI ? ' + WAN i2v (animasi)' : ''} + Remotion
+🎞️ **Scenes**: ${scenes.length} scene (~${estSec} detik): ${sceneTypes}
 ⏱️ **Estimasi**: ${estimatedTime}
 
 Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.`;

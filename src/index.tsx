@@ -27,6 +27,7 @@ import { ExplainerVideoScene } from './compositions/ExplainerVideoScene';
 import { CharacterAnimation } from './compositions/CharacterAnimation';
 import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
+import { BorneoVideo } from './compositions/BorneoVideo';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -662,6 +663,33 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(144, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 90), 0)),
+        })}
+      />
+      {/* BorneoVideo - Environmental Storytelling YouTube long-form (16:9) */}
+      <Composition
+        id="BorneoVideo"
+        component={BorneoVideo as any}
+        durationInFrames={720}
+        fps={24}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          scenes: [
+            { type: 'hook', text: 'This river plant exists nowhere else on Earth. And it is disappearing in silence.', duration: 110, textSpeed: 'slow', glitchWords: ['nowhere', 'silence'] },
+            { type: 'species_reveal', text: 'Bucephalandra', subtext: 'Endemic to Borneo — found only in fast-flowing rivers', label: 'ENDEMIC SPECIES', duration: 120 },
+            { type: 'data_fact', text: 'In 2024, Indonesia lost 261,575 hectares of forest — the highest since 2021.', label: 'THE DATA', factLabel: 'VERIFIED', source: 'Auriga Nusantara, 2024', duration: 168 },
+            { type: 'paradox', text: '97% of that deforestation was perfectly legal — inside government-issued concessions.', label: 'THE PARADOX', source: 'Global Forest Watch', duration: 168 },
+            { type: 'investigation', text: 'A permanent moratorium exists since 2019. So why does the forest keep falling?', duration: 150 },
+            { type: 'call_to_action', text: 'If we cannot protect a plant that grows nowhere else, what does protection even mean?', label: 'WHAT WILL YOU DO?', duration: 150 },
+            { type: 'outro', text: 'The forest cannot speak. So we must.', duration: 110 },
+          ],
+          accentColor: '#3FA66A',
+          secondaryColor: '#7B3FA0',
+          episodeLabel: 'EPISODE 01 — THE SILENT WITNESS',
+          seriesName: 'BORNEO PRIDE',
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(240, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 120), 0)),
         })}
       />
     </>
