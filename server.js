@@ -46,10 +46,24 @@ async function getBundle() {
   }
 }
 
-async function renderVideo(compositionId, inputProps, outputPath) {
+// Resolusi per format. 'portrait' utk TikTok/IG Reels, 'landscape' utk YouTube, 'square' utk feed IG.
+const FORMAT_DIMENSIONS = {
+  portrait: { width: 1080, height: 1920 },
+  landscape: { width: 1920, height: 1080 },
+  square: { width: 1080, height: 1080 },
+};
+
+async function renderVideo(compositionId, inputProps, outputPath, format) {
   const { selectComposition, renderMedia } = await import('@remotion/renderer');
   const bundle = await getBundle();
   const composition = await selectComposition({ serveUrl: bundle, id: compositionId, inputProps });
+  // Override dimensi composition jika format diberikan. Komponen sudah memakai useVideoConfig()
+  // sehingga responsif terhadap dimensi apapun (full / split / greenscreen).
+  const dims = FORMAT_DIMENSIONS[format];
+  if (dims) {
+    composition.width = dims.width;
+    composition.height = dims.height;
+  }
   await renderMedia({
     composition, serveUrl: bundle, codec: 'h264', outputLocation: outputPath, inputProps,
     chromiumOptions: { disableWebSecurity: true, headless: true },
@@ -65,7 +79,12 @@ function getBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
-function startRender(renderId, compositionId, inputProps, baseUrl, progressInterval = 3000, progressStep = 5) {
+// Alias global agar REST endpoints lama tetap berfungsi (tanpa format).
+function startRender(renderId, compositionId, inputProps, baseUrl, progressInterval, progressStep, format) {
+  return startRenderJob(renderId, compositionId, inputProps, baseUrl, progressInterval, progressStep, format);
+}
+
+function startRenderJob(renderId, compositionId, inputProps, baseUrl, progressInterval = 3000, progressStep = 5, format = null) {
   renderJobs[renderId] = { status: 'processing', progress: 10, message: 'Menyiapkan render...' };
   const timer = setInterval(() => {
     const job = renderJobs[renderId];
@@ -76,7 +95,7 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
   }, progressInterval);
 
   const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
-  renderVideo(compositionId, inputProps, outputPath)
+  renderVideo(compositionId, inputProps, outputPath, format)
     .then(() => {
       clearInterval(timer);
       const stats = fs.statSync(outputPath);
@@ -831,12 +850,132 @@ const MCP_TOOLS = [
       required: ['scenes', 'speciesDescription'],
     },
   },
+  {
+    name: 'render_stock_ticker',
+    description: 'Buat overlay TICKER HARGA berjalan ala Bloomberg/CNBC: kartu harga aset (saham, crypto, forex, komoditas) dengan persen perubahan hijau/merah + pita berjalan di bawah. Cocok sebagai overlay di atas video wajah Anda untuk konten trading/market update. Default portrait (TikTok/IG). Setelah render selesai berikan link download.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul besar, mis. "MARKET WATCH" atau "CRYPTO TODAY"' },
+        subtitle: { type: 'string', description: 'Label kecil, mis. "LIVE" atau tanggal' },
+        items: {
+          type: 'array',
+          description: 'Daftar aset (3-6 ideal). Tiap item: symbol, price (angka), changePct (angka, boleh negatif).',
+          items: {
+            type: 'object',
+            properties: {
+              symbol: { type: 'string', description: 'Kode aset, mis. BTC, IHSG, USD/IDR' },
+              price: { type: 'number', description: 'Harga terkini' },
+              changePct: { type: 'number', description: 'Perubahan persen, mis. 3.42 atau -0.87' },
+            },
+            required: ['symbol', 'price', 'changePct'],
+          },
+        },
+        accentColor: { type: 'string', description: 'Warna aksen hex. Default ungu #7B3FA0' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'render_candlestick_chart',
+    description: 'Buat overlay CHART CANDLESTICK trading yang ter-reveal progresif (seperti TradingView), lengkap dengan grid harga, label simbol, timeframe, harga, dan persen perubahan. Cocok untuk analisis teknikal, update harga aset. Default portrait. Setelah render selesai berikan link download.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'Simbol pasangan, mis. BTC/USD, BBCA, EUR/USD' },
+        timeframe: { type: 'string', description: 'Timeframe, mis. 1H, 4H, 1D, 1W' },
+        priceLabel: { type: 'string', description: 'Label harga terakhir, mis. "$71,234" atau "Rp9.850"' },
+        changePct: { type: 'number', description: 'Persen perubahan, boleh negatif' },
+        candles: {
+          type: 'array',
+          description: 'Data candle opsional (kalau kosong, dibuat tren naik realistis). Tiap candle: o,h,l,c (open/high/low/close).',
+          items: {
+            type: 'object',
+            properties: {
+              o: { type: 'number' }, h: { type: 'number' }, l: { type: 'number' }, c: { type: 'number' },
+            },
+            required: ['o', 'h', 'l', 'c'],
+          },
+        },
+        accentColor: { type: 'string', description: 'Warna aksen hex. Default ungu #7B3FA0' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'render_breaking_news',
+    description: 'Buat overlay BREAKING NEWS finansial ala TV (Bloomberg/CNBC): badge "BREAKING" berkedip, bar headline besar, sumber berita, dan ticker berjalan di bawah. Ruang atas dibiarkan kosong untuk wajah Anda. Cocok untuk konten berita ekonomi/market alert. Default portrait. Setelah render selesai berikan link download.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        headline: { type: 'string', description: 'Judul berita utama (huruf kapital lebih bagus), mis. "FED HOLDS RATES STEADY AT 4.25%"' },
+        source: { type: 'string', description: 'Sumber berita, mis. BLOOMBERG, REUTERS, CNBC' },
+        ticker: { type: 'string', description: 'Teks ticker berjalan di bawah (poin-poin dipisah \u00b7)' },
+        category: { type: 'string', description: 'Label kategori badge, mis. BREAKING, MARKET ALERT, URGENT' },
+        accentColor: { type: 'string', description: 'Warna aksen hex. Default merah #FF4D5E' },
+      },
+      required: ['headline'],
+    },
+  },
+  {
+    name: 'render_market_dashboard',
+    description: 'Buat overlay DASHBOARD pasar dengan COUNTER ANGKA beranimasi (angka berhitung naik) untuk 4 metrik kunci (indeks, crypto, inflasi, forex, dll) lengkap dengan persen perubahan. Cocok untuk rangkuman harian/mingguan. Default portrait. Setelah render selesai berikan link download.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Judul besar, mis. "MARKET SNAPSHOT"' },
+        subtitle: { type: 'string', description: 'Subjudul, mis. "Today \u00b7 Key Numbers"' },
+        metrics: {
+          type: 'array',
+          description: 'Daftar metrik (maks 4 ditampilkan). Tiap metrik: label, value (angka), prefix opsional (mis. $/Rp), suffix opsional (mis. %), changePct opsional.',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string' },
+              value: { type: 'number' },
+              prefix: { type: 'string' },
+              suffix: { type: 'string' },
+              changePct: { type: 'number' },
+            },
+            required: ['label', 'value'],
+          },
+        },
+        accentColor: { type: 'string', description: 'Warna aksen hex. Default ungu #7B3FA0' },
+      },
+      required: [],
+    },
+  },
 ];
+
+// ─────────────────────────────────────────────
+// Suntikkan parameter `format` ke semua tool render (kecuali utilitas).
+// portrait = TikTok/IG Reels (1080x1920), landscape = YouTube (1920x1080), square = feed IG (1080x1080).
+// ─────────────────────────────────────────────
+const NON_RENDER_TOOLS = new Set(['check_render_status', 'get_templates']);
+for (const _tool of MCP_TOOLS) {
+  if (NON_RENDER_TOOLS.has(_tool.name)) continue;
+  if (!_tool.inputSchema || !_tool.inputSchema.properties) continue;
+  if (!_tool.inputSchema.properties.format) {
+    _tool.inputSchema.properties.format = {
+      type: 'string',
+      enum: ['portrait', 'landscape', 'square'],
+      description: 'Rasio output video. "portrait" (1080x1920) untuk TikTok/Instagram Reels/Shorts, "landscape" (1920x1080) untuk YouTube, "square" (1080x1080) untuk feed Instagram. Default mengikuti rasio asli template.',
+    };
+  }
+}
 
 // ─────────────────────────────────────────────
 // MCP Tool Executor
 // ─────────────────────────────────────────────
 async function executeTool(name, args, baseUrl) {
+  // Format global (portrait utk TikTok/IG, landscape utk YouTube, square utk feed).
+  // Diekstrak sekali di sini lalu otomatis diteruskan oleh wrapper startRender.
+  const _format = (args && (args.format === 'portrait' || args.format === 'landscape' || args.format === 'square')) ? args.format : null;
+  // Wrapper startRender lokal: 6 argumen pertama sama, format diinject otomatis dari _format.
+  const startRender = (renderId, compositionId, inputProps, baseUrlArg, progressInterval = 3000, progressStep = 5, fmt) => {
+    return startRenderJob(renderId, compositionId, inputProps, baseUrlArg, progressInterval, progressStep, fmt !== undefined ? fmt : _format);
+  };
+
   // render_text_video
   if (name === 'render_text_video') {
     const { scenes = [], style = 'cinematic' } = args;
@@ -1719,6 +1858,35 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
 ⏱️ **Estimasi**: ${estimatedTime}
 
 Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.`;
+  }
+
+  // ── Trading tools ──
+  if (name === 'render_stock_ticker') {
+    const { title = 'MARKET WATCH', subtitle = 'LIVE', items = [], accentColor = '#7B3FA0' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'StockTicker', { title, subtitle, items, accentColor }, baseUrl, 2500, 6);
+    return `✅ **Stock Ticker dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_candlestick_chart') {
+    const { symbol = 'BTC/USD', timeframe = '4H', priceLabel = '', changePct = 0, candles = [], accentColor = '#7B3FA0' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'CandlestickChart', { symbol, timeframe, priceLabel, changePct, candles, accentColor }, baseUrl, 2500, 6);
+    return `✅ **Candlestick Chart dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_breaking_news') {
+    const { headline = 'BREAKING NEWS', source = 'BLOOMBERG', ticker = '', category = 'BREAKING', accentColor = '#FF4D5E' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'BreakingNews', { headline, source, ticker, category, accentColor }, baseUrl, 2500, 6);
+    return `✅ **Breaking News dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_market_dashboard') {
+    const { title = 'MARKET SNAPSHOT', subtitle = 'Today · Key Numbers', metrics = [], accentColor = '#7B3FA0' } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'MarketDashboard', { title, subtitle, metrics, accentColor }, baseUrl, 2500, 6);
+    return `✅ **Market Dashboard dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
   }
 
   // check_render_status

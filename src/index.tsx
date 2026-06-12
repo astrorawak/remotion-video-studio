@@ -28,6 +28,7 @@ import { CharacterAnimation } from './compositions/CharacterAnimation';
 import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
 import { BorneoVideo } from './compositions/BorneoVideo';
+import { StockTickerScene, CandlestickScene, BreakingNewsScene, MarketDashboardScene } from './compositions/TradingScenes';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -691,6 +692,66 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(240, (props.scenes || []).reduce((acc: number, s: any) => acc + (s.duration || 120), 0)),
         })}
+      />
+      {/* ── Trading Scenes (portrait default 1080x1920, override via format) ── */}
+      <Composition
+        id="StockTicker"
+        component={StockTickerScene as any}
+        durationInFrames={180}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          title: 'MARKET WATCH',
+          subtitle: 'LIVE',
+          accentColor: '#7B3FA0',
+          items: [],
+        }}
+      />
+      <Composition
+        id="CandlestickChart"
+        component={CandlestickScene as any}
+        durationInFrames={180}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          symbol: 'BTC/USD',
+          timeframe: '4H',
+          priceLabel: '$71,234',
+          changePct: 3.42,
+          accentColor: '#7B3FA0',
+          candles: [],
+        }}
+      />
+      <Composition
+        id="BreakingNews"
+        component={BreakingNewsScene as any}
+        durationInFrames={180}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          headline: 'FED HOLDS RATES STEADY AT 4.25%',
+          source: 'BLOOMBERG',
+          ticker: 'Markets react cautiously · Dollar steady · Asian futures mixed',
+          category: 'BREAKING',
+          accentColor: '#FF4D5E',
+        }}
+      />
+      <Composition
+        id="MarketDashboard"
+        component={MarketDashboardScene as any}
+        durationInFrames={180}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          title: 'MARKET SNAPSHOT',
+          subtitle: 'Today · Key Numbers',
+          accentColor: '#7B3FA0',
+          metrics: [],
+        }}
       />
     </>
   );
