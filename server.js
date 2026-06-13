@@ -1010,37 +1010,63 @@ for (const _tool of MCP_TOOLS) {
 // Dipakai untuk memperkaya scene Workflow Explainer (background per-scene).
 // Mengembalikan URL gambar, atau null jika gagal (render tetap lanjut tanpa gambar).
 // ─────────────────────────────────────────────
+const _sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function generateReplicateImage(prompt, aspectRatio = '9:16') {
   const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
   if (!REPLICATE_TOKEN || !prompt) return null;
   // Style cinematic premium konsisten dengan brand Karmanrizky (ungu-hitam, elegan).
   const styled = `${prompt}, cinematic, dramatic lighting, premium dark aesthetic with subtle purple tones, highly detailed, professional photography, depth of field, 8k, no text, no watermark`;
-  try {
-    const res = await fetch('https://api.replicate.com/v1/predictions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        version: 'black-forest-labs/flux-schnell',
-        input: { prompt: styled, num_outputs: 1, aspect_ratio: aspectRatio, output_format: 'webp', output_quality: 90, go_fast: true },
-      }),
-    });
-    const pred = await res.json();
-    if (!pred.id) { console.error('[ReplicateImg] no id:', JSON.stringify(pred).slice(0, 200)); return null; }
-    for (let i = 0; i < 45; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${pred.id}`, {
-        headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+  // Coba beberapa kali. Saat akun Replicate bersaldo < $5, rate limit "burst 1/menit" →
+  // request bisa ditolak (HTTP 429). Kita hormati dengan menunggu lalu mencoba lagi,
+  // sehingga SEMUA gambar (background + thumbnail poin) tetap dihasilkan.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const res = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: 'black-forest-labs/flux-schnell',
+          input: { prompt: styled, num_outputs: 1, aspect_ratio: aspectRatio, output_format: 'webp', output_quality: 90, go_fast: true },
+        }),
       });
-      const data = await pollRes.json();
-      if (data.status === 'succeeded') return Array.isArray(data.output) ? data.output[0] : data.output;
-      if (data.status === 'failed' || data.status === 'canceled') { console.error('[ReplicateImg] failed:', data.error); return null; }
+      // Throttled → tunggu (hormati header Retry-After bila ada) lalu ulangi.
+      if (res.status === 429) {
+        const ra = parseInt(res.headers.get('retry-after') || '', 10);
+        const waitMs = (Number.isFinite(ra) ? ra : 12) * 1000 + 1000;
+        console.error(`[ReplicateImg] throttled, retry in ${waitMs}ms (attempt ${attempt + 1})`);
+        await _sleep(waitMs);
+        continue;
+      }
+      const pred = await res.json();
+      if (!pred.id) {
+        const msg = JSON.stringify(pred).slice(0, 200);
+        // Beberapa balasan throttle datang sebagai body, bukan status 429.
+        if (/throttl|rate limit/i.test(msg)) {
+          console.error(`[ReplicateImg] throttled(body), retry (attempt ${attempt + 1})`);
+          await _sleep(13000);
+          continue;
+        }
+        console.error('[ReplicateImg] no id:', msg);
+        return null;
+      }
+      for (let i = 0; i < 45; i++) {
+        await _sleep(2000);
+        const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+          headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+        });
+        const data = await pollRes.json();
+        if (data.status === 'succeeded') return Array.isArray(data.output) ? data.output[0] : data.output;
+        if (data.status === 'failed' || data.status === 'canceled') { console.error('[ReplicateImg] failed:', data.error); return null; }
+      }
+      console.error('[ReplicateImg] timeout');
+      return null;
+    } catch (err) {
+      console.error('[ReplicateImg] error:', err.message);
+      await _sleep(3000);
     }
-    console.error('[ReplicateImg] timeout');
-    return null;
-  } catch (err) {
-    console.error('[ReplicateImg] error:', err.message);
-    return null;
   }
+  console.error('[ReplicateImg] gave up after retries');
+  return null;
 }
 
 // Map format video -> aspect ratio gambar Replicate.
