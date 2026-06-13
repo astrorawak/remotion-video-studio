@@ -9,11 +9,12 @@ import {
   Easing,
   Img,
 } from 'remotion';
+import { resolveTheme, hexToRgba, ThemeTokens } from './wfThemes';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Workflow Explainer: ubah sebuah workflow/infografis menjadi video animasi
-// step-by-step yang menjelaskan setiap langkah. Dirancang agar pas dipadukan
-// dengan narasi text-to-speech (TTS) di CapCut.
+// step-by-step. Mendukung TEMA ADAPTIF (mengikuti warna/gaya gambar sumber)
+// + elemen storytelling (label monospace, highlight kata) ala kreator referensi.
 
 export type WorkflowScene =
   | {
@@ -24,6 +25,7 @@ export type WorkflowScene =
       badge?: string;
       duration?: number;
       sceneImage?: string;
+      highlight?: string; // kata di title yang di-highlight warna aksen
     }
   | {
       type: 'step';
@@ -35,10 +37,20 @@ export type WorkflowScene =
       tools?: string[];
       duration?: number;
       sceneImage?: string;
+      label?: string;     // pill monospace konteks, mis. "< CARA LAMA >"
+      highlight?: string; // kata di title yang di-highlight
     }
   | {
       type: 'connector';
       text?: string;
+      duration?: number;
+      sceneImage?: string;
+    }
+  | {
+      type: 'spotlight'; // scene "MOMEN WAH": satu kalimat besar dominan
+      text: string;
+      highlight?: string;
+      label?: string;
       duration?: number;
       sceneImage?: string;
     }
@@ -57,11 +69,15 @@ export type WorkflowScene =
       handle?: string;
       duration?: number;
       sceneImage?: string;
+      highlight?: string;
     };
 
 export interface WorkflowExplainerProps {
   topic?: string;
   scenes: WorkflowScene[];
+  // Tema: bisa preset name + override warna agar mengikuti gambar sumber.
+  theme?: string;
+  mode?: 'dark' | 'light';
   bgColor?: string;
   accentColor?: string;
   secondaryColor?: string;
@@ -77,20 +93,46 @@ const useSpringVal = (frame: number, delay = 0, stiffness = 120, fps = 30) =>
 const useFade = (frame: number, delay = 0, duration = 18) =>
   interpolate(frame, [delay, delay + duration], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-// Subtle animated background: grid + soft glow (terasa premium, tidak murahan)
-const AnimatedBackground: React.FC<{ accent: string; secondary: string; bg: string }> = ({ accent, secondary, bg }) => {
+const MONO = "'JetBrains Mono', 'SF Mono', 'Courier New', monospace";
+
+// Render judul dengan satu kata/frasa di-highlight warna aksen.
+const HighlightText: React.FC<{ text: string; highlight?: string; accent: string }> = ({ text, highlight, accent }) => {
+  if (!highlight || !text.toLowerCase().includes(highlight.toLowerCase())) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(highlight.toLowerCase());
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + highlight.length);
+  const after = text.slice(idx + highlight.length);
+  return (
+    <>
+      {before}
+      <span style={{ color: accent }}>{match}</span>
+      {after}
+    </>
+  );
+};
+
+// Subtle animated background (mengikuti tema): grid + soft glow. "Layar tak pernah diam".
+const AnimatedBackground: React.FC<{ t: ThemeTokens }> = ({ t }) => {
   const frame = useCurrentFrame();
   const drift = Math.sin(frame / 60) * 30;
   const drift2 = Math.cos(frame / 80) * 40;
+  const gridAlpha = t.mode === 'light' ? 0.05 : 0.04;
   return (
-    <AbsoluteFill style={{ background: bg, overflow: 'hidden' }}>
-      {/* soft glows */}
-      <div style={{ position: 'absolute', width: 700, height: 700, borderRadius: '50%', background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`, top: `${20 + drift / 10}%`, left: `${10 + drift / 12}%`, filter: 'blur(20px)' }} />
-      <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', background: `radial-gradient(circle, ${secondary}1A 0%, transparent 70%)`, bottom: `${10 + drift2 / 12}%`, right: `${5 + drift2 / 14}%`, filter: 'blur(20px)' }} />
-      {/* faint grid */}
+    <AbsoluteFill style={{ background: t.bg, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', width: 700, height: 700, borderRadius: '50%', background: `radial-gradient(circle, ${hexToRgba(t.accent, 0.14)} 0%, transparent 70%)`, top: `${20 + drift / 10}%`, left: `${10 + drift / 12}%`, filter: 'blur(20px)' }} />
+      <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', background: `radial-gradient(circle, ${hexToRgba(t.secondary, 0.1)} 0%, transparent 70%)`, bottom: `${10 + drift2 / 12}%`, right: `${5 + drift2 / 14}%`, filter: 'blur(20px)' }} />
+      {/* drifting plus marks (ala kreator referensi) */}
+      {[...Array(6)].map((_, i) => {
+        const x = (i * 137) % 100;
+        const y = (i * 211) % 100;
+        const fl = Math.sin((frame + i * 40) / 50) * 10;
+        return (
+          <div key={i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, transform: `translateY(${fl}px) rotate(${frame / 6 + i * 30}deg)`, color: hexToRgba(t.accent, 0.12), fontSize: 30, fontFamily: MONO }}>+</div>
+        );
+      })}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: `linear-gradient(${accent}0A 1px, transparent 1px), linear-gradient(90deg, ${accent}0A 1px, transparent 1px)`,
+        backgroundImage: `linear-gradient(${hexToRgba(t.accent, gridAlpha)} 1px, transparent 1px), linear-gradient(90deg, ${hexToRgba(t.accent, gridAlpha)} 1px, transparent 1px)`,
         backgroundSize: '64px 64px',
         maskImage: 'radial-gradient(circle at center, black 30%, transparent 80%)',
         WebkitMaskImage: 'radial-gradient(circle at center, black 30%, transparent 80%)',
@@ -99,10 +141,10 @@ const AnimatedBackground: React.FC<{ accent: string; secondary: string; bg: stri
   );
 };
 
-const Grain: React.FC = () => {
+const Grain: React.FC<{ t: ThemeTokens }> = ({ t }) => {
   const frame = useCurrentFrame();
   return (
-    <AbsoluteFill style={{ opacity: 0.04, mixBlendMode: 'overlay', pointerEvents: 'none' }}>
+    <AbsoluteFill style={{ opacity: t.mode === 'light' ? 0.025 : 0.04, mixBlendMode: t.mode === 'light' ? 'multiply' : 'overlay', pointerEvents: 'none' }}>
       <svg width="100%" height="100%">
         <filter id="wf-noise">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed={frame % 10} />
@@ -113,50 +155,58 @@ const Grain: React.FC = () => {
   );
 };
 
-// Cinematic per-scene background image with slow Ken Burns zoom + dark overlay
-// agar gambar AI terasa hidup tapi teks tetap terbaca tajam.
-const SceneImageLayer: React.FC<{ src?: string; accent: string }> = ({ src, accent }) => {
+// Cinematic per-scene background image dengan Ken Burns + overlay yang menyesuaikan tema.
+const SceneImageLayer: React.FC<{ src?: string; t: ThemeTokens }> = ({ src, t }) => {
   const frame = useCurrentFrame();
   if (!src) return null;
-  // Slow zoom dari 1.08 -> 1.18 sepanjang scene (Ken Burns) + drift halus.
   const zoom = 1.08 + Math.min(frame, 240) / 240 * 0.1;
   const driftX = Math.sin(frame / 90) * 14;
   const driftY = Math.cos(frame / 110) * 12;
   const intro = interpolate(frame, [0, 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  // overlay base color mengikuti bg tema (gelap untuk dark, terang untuk light)
+  const base = t.mode === 'light' ? '245,239,233' : '11,7,16';
   return (
     <AbsoluteFill style={{ overflow: 'hidden', opacity: intro }}>
       <Img
         src={src}
-        style={{
-          width: '100%', height: '100%', objectFit: 'cover',
-          transform: `scale(${zoom}) translate(${driftX}px, ${driftY}px)`,
-        }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom}) translate(${driftX}px, ${driftY}px)` }}
       />
-      {/* Dark + accent overlay agar teks kontras dan brand terasa.
-         Overlay vertikal lebih kuat di bawah + scrim tengah agar gambar tidak menabrak teks. */}
-      <AbsoluteFill style={{ background: `linear-gradient(180deg, rgba(11,7,16,0.62) 0%, rgba(11,7,16,0.5) 38%, rgba(11,7,16,0.82) 70%, rgba(11,7,16,0.96) 100%)` }} />
-      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 50%, rgba(11,7,16,0.5) 0%, transparent 55%)` }} />
-      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 38%, ${accent}1A 0%, transparent 60%)` }} />
+      <AbsoluteFill style={{ background: `linear-gradient(180deg, rgba(${base},0.55) 0%, rgba(${base},0.42) 38%, rgba(${base},0.78) 70%, rgba(${base},0.95) 100%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 50%, rgba(${base},0.45) 0%, transparent 55%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 38%, ${hexToRgba(t.accent, 0.1)} 0%, transparent 60%)` }} />
     </AbsoluteFill>
   );
 };
 
-const BrandTag: React.FC<{ brandName?: string; accent: string }> = ({ brandName, accent }) => {
+const BrandTag: React.FC<{ brandName?: string; t: ThemeTokens }> = ({ brandName, t }) => {
   if (!brandName) return null;
   return (
     <div style={{ position: 'absolute', top: 48, left: 56, display: 'flex', alignItems: 'center', gap: 10, zIndex: 50 }}>
-      <div style={{ width: 14, height: 14, borderRadius: 4, background: accent, boxShadow: `0 0 16px ${accent}` }} />
-      <span style={{ fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' }}>{brandName}</span>
+      <div style={{ width: 14, height: 14, borderRadius: 4, background: t.accent, boxShadow: `0 0 16px ${t.accent}` }} />
+      <span style={{ fontSize: 20, fontWeight: 800, color: t.brandText, letterSpacing: 3, textTransform: 'uppercase' }}>{brandName}</span>
+    </div>
+  );
+};
+
+// Pill label monospace di atas-tengah (konteks scene).
+const MonoLabel: React.FC<{ label?: string; t: ThemeTokens; frame: number }> = ({ label, t, frame }) => {
+  if (!label) return null;
+  const f = useFade(frame, 2);
+  return (
+    <div style={{ position: 'absolute', top: 120, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: f, zIndex: 40 }}>
+      <div style={{ fontFamily: MONO, fontSize: 22, letterSpacing: 4, textTransform: 'uppercase', color: t.accent, padding: '8px 20px', borderRadius: 8, border: `1.5px solid ${hexToRgba(t.accent, 0.45)}`, background: hexToRgba(t.accent, 0.08) }}>
+        {label}
+      </div>
     </div>
   );
 };
 
 // ─── Scene Components ───────────────────────────────────────────────────────────
 
-const IntroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'intro' }>; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+const IntroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'intro' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
-  const isPortrait = useVideoConfig().height > width;
+  const { fps, width, height } = useVideoConfig();
+  const isPortrait = height > width;
   const titleSpring = useSpringVal(frame, 6, 110, fps);
   const subFade = useFade(frame, 24);
   const iconSpring = useSpringVal(frame, 0, 90, fps);
@@ -165,20 +215,20 @@ const IntroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'intro' }>; a
 
   return (
     <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isPortrait ? '0 80px' : '0 140px' }}>
-      <BrandTag brandName={brandName} accent={accent} />
+      <BrandTag brandName={brandName} t={t} />
       {scene.badge && (
-        <div style={{ opacity: badgeFade, marginBottom: 28, padding: '10px 26px', borderRadius: 999, border: `1.5px solid ${accent}`, background: `${accent}1A`, color: accent, fontSize: 20, fontWeight: 700, letterSpacing: 4, textTransform: 'uppercase' }}>
+        <div style={{ opacity: badgeFade, marginBottom: 28, padding: '10px 26px', borderRadius: 999, border: `1.5px solid ${t.accent}`, background: hexToRgba(t.accent, 0.1), color: t.accent, fontSize: 20, fontWeight: 700, letterSpacing: 4, textTransform: 'uppercase', fontFamily: MONO }}>
           {scene.badge}
         </div>
       )}
       {scene.icon && (
         <div style={{ fontSize: isPortrait ? 120 : 100, marginBottom: 28, transform: `scale(${iconSpring}) translateY(${float}px)` }}>{scene.icon}</div>
       )}
-      <div style={{ fontSize: isPortrait ? 92 : 84, fontWeight: 900, color: '#fff', textAlign: 'center', transform: `scale(${titleSpring})`, letterSpacing: '-2px', lineHeight: 1.05, textShadow: `0 0 70px ${accent}77`, maxWidth: 1100 }}>
-        {scene.title}
+      <div style={{ fontSize: isPortrait ? 92 : 84, fontWeight: 900, color: t.text, textAlign: 'center', transform: `scale(${titleSpring})`, letterSpacing: '-2px', lineHeight: 1.05, textShadow: t.mode === 'dark' ? `0 0 70px ${hexToRgba(t.accent, 0.47)}` : 'none', maxWidth: 1100 }}>
+        <HighlightText text={scene.title} highlight={scene.highlight} accent={t.accent} />
       </div>
       {scene.subtitle && (
-        <div style={{ opacity: subFade, fontSize: isPortrait ? 34 : 30, color: secondary, marginTop: 26, letterSpacing: 2, textAlign: 'center', maxWidth: 900, fontWeight: 500 }}>
+        <div style={{ opacity: subFade, fontSize: isPortrait ? 34 : 30, color: t.textMuted, marginTop: 26, letterSpacing: 2, textAlign: 'center', maxWidth: 900, fontWeight: 500 }}>
           {scene.subtitle}
         </div>
       )}
@@ -186,7 +236,7 @@ const IntroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'intro' }>; a
   );
 };
 
-const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const isPortrait = height > width;
@@ -198,17 +248,17 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; acc
 
   return (
     <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isPortrait ? '0 90px' : '0 160px' }}>
-      <BrandTag brandName={brandName} accent={accent} />
+      <BrandTag brandName={brandName} t={t} />
+      <MonoLabel label={scene.label} t={t} frame={frame} />
 
-      {/* Step number badge */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, marginBottom: 40 }}>
         <div style={{
           transform: `scale(${numSpring})`,
           width: isPortrait ? 130 : 120, height: isPortrait ? 130 : 120, borderRadius: 30,
-          background: `linear-gradient(135deg, ${accent}, ${secondary})`,
+          background: `linear-gradient(135deg, ${t.accent}, ${t.secondary})`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: isPortrait ? 64 : 58, fontWeight: 900, color: '#fff',
-          boxShadow: `0 18px 50px ${accent}55`, flexShrink: 0,
+          boxShadow: `0 18px 50px ${hexToRgba(t.accent, 0.33)}`, flexShrink: 0,
         }}>
           {scene.stepNumber}
         </div>
@@ -217,19 +267,16 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; acc
         )}
       </div>
 
-      {/* Title */}
-      <div style={{ opacity: titleFade, transform: `translateY(${titleSlide}px)`, fontSize: isPortrait ? 70 : 64, fontWeight: 900, color: '#fff', lineHeight: 1.1, letterSpacing: '-1px', marginBottom: 24, textShadow: `0 0 40px ${accent}44`, maxWidth: 1100 }}>
-        {scene.title}
+      <div style={{ opacity: titleFade, transform: `translateY(${titleSlide}px)`, fontSize: isPortrait ? 70 : 64, fontWeight: 900, color: t.text, lineHeight: 1.1, letterSpacing: '-1px', marginBottom: 24, textShadow: t.mode === 'dark' ? `0 0 40px ${hexToRgba(t.accent, 0.27)}` : 'none', maxWidth: 1100 }}>
+        <HighlightText text={scene.title} highlight={scene.highlight} accent={t.accent} />
       </div>
 
-      {/* Description */}
       {scene.description && (
-        <div style={{ opacity: descFade, fontSize: isPortrait ? 34 : 30, color: 'rgba(255,255,255,0.72)', lineHeight: 1.5, maxWidth: 1000, marginBottom: 28 }}>
+        <div style={{ opacity: descFade, fontSize: isPortrait ? 34 : 30, color: t.textMuted, lineHeight: 1.5, maxWidth: 1000, marginBottom: 28 }}>
           {scene.description}
         </div>
       )}
 
-      {/* Points (muncul satu per satu) — tiap poin bisa punya ikon/gambar AI sendiri */}
       {scene.points && scene.points.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1000 }}>
           {scene.points.map((rawP, i) => {
@@ -240,35 +287,34 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; acc
             const mediaScale = useSpringVal(frame, delay + 2, 150, fps);
             const thumb = isPortrait ? 72 : 64;
             return (
-              <div key={i} style={{ opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: 'rgba(255,255,255,0.05)', borderLeft: `4px solid ${accent}`, borderRadius: 14, padding: isPortrait ? '18px 24px' : '16px 24px' }}>
+              <div key={i} style={{ opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: t.card, borderLeft: `4px solid ${t.accent}`, borderRadius: 14, padding: isPortrait ? '18px 24px' : '16px 24px' }}>
                 {p.image ? (
-                  <div style={{ width: thumb, height: thumb, borderRadius: 14, overflow: 'hidden', flexShrink: 0, transform: `scale(${mediaScale})`, boxShadow: `0 8px 22px ${accent}44`, border: `2px solid ${accent}66` }}>
+                  <div style={{ width: thumb, height: thumb, borderRadius: 14, overflow: 'hidden', flexShrink: 0, transform: `scale(${mediaScale})`, boxShadow: `0 8px 22px ${hexToRgba(t.accent, 0.27)}`, border: `2px solid ${hexToRgba(t.accent, 0.4)}` }}>
                     <Img src={p.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ) : p.icon ? (
-                  <div style={{ width: thumb, height: thumb, borderRadius: 14, flexShrink: 0, transform: `scale(${mediaScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isPortrait ? 38 : 34, background: `linear-gradient(135deg, ${accent}33, ${secondary}22)`, border: `1.5px solid ${accent}55` }}>
+                  <div style={{ width: thumb, height: thumb, borderRadius: 14, flexShrink: 0, transform: `scale(${mediaScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isPortrait ? 38 : 34, background: `linear-gradient(135deg, ${hexToRgba(t.accent, 0.2)}, ${hexToRgba(t.secondary, 0.13)})`, border: `1.5px solid ${hexToRgba(t.accent, 0.33)}` }}>
                     {p.icon}
                   </div>
                 ) : (
-                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: `0 0 12px ${accent}`, flexShrink: 0 }} />
+                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: t.accent, boxShadow: `0 0 12px ${t.accent}`, flexShrink: 0 }} />
                 )}
-                <span style={{ fontSize: isPortrait ? 30 : 27, color: '#fff', fontWeight: 500 }}>{p.text}</span>
+                <span style={{ fontSize: isPortrait ? 30 : 27, color: t.text, fontWeight: 500 }}>{p.text}</span>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Tools chips */}
       {scene.tools && scene.tools.length > 0 && (
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 32 }}>
-          {scene.tools.map((t, i) => {
+          {scene.tools.map((tool, i) => {
             const delay = 38 + (scene.points?.length || 0) * 14 + i * 10;
             const cFade = useFade(frame, delay);
             const cScale = useSpringVal(frame, delay, 160, fps);
             return (
-              <div key={i} style={{ opacity: cFade, transform: `scale(${cScale})`, padding: '12px 24px', borderRadius: 999, background: `${secondary}22`, border: `1.5px solid ${secondary}`, color: '#fff', fontSize: isPortrait ? 26 : 23, fontWeight: 700 }}>
-                {t}
+              <div key={i} style={{ opacity: cFade, transform: `scale(${cScale})`, padding: '12px 24px', borderRadius: 999, background: hexToRgba(t.secondary, 0.13), border: `1.5px solid ${t.secondary}`, color: t.text, fontSize: isPortrait ? 26 : 23, fontWeight: 700 }}>
+                {tool}
               </div>
             );
           })}
@@ -278,9 +324,8 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; acc
   );
 };
 
-const ConnectorScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'connector' }>; accent: string; secondary: string }> = ({ scene, accent, secondary }) => {
+const ConnectorScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'connector' }>; t: ThemeTokens }> = ({ scene, t }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   const arrowProg = interpolate(frame, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) });
   const textFade = useFade(frame, 8);
   const pulse = 1 + Math.sin(frame / 8) * 0.06;
@@ -292,14 +337,14 @@ const ConnectorScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'connecto
           <div key={i} style={{
             width: 0, height: 0,
             borderLeft: '26px solid transparent', borderRight: '26px solid transparent',
-            borderTop: `34px solid ${accent}`,
+            borderTop: `34px solid ${t.accent}`,
             opacity: interpolate(arrowProg, [i * 0.25, i * 0.25 + 0.3], [0.2, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
-            filter: `drop-shadow(0 0 12px ${accent}88)`,
+            filter: `drop-shadow(0 0 12px ${hexToRgba(t.accent, 0.53)})`,
           }} />
         ))}
       </div>
       {scene.text && (
-        <div style={{ opacity: textFade, fontSize: 38, fontWeight: 700, color: secondary, letterSpacing: 2, textAlign: 'center', maxWidth: 800 }}>
+        <div style={{ opacity: textFade, fontSize: 38, fontWeight: 700, color: t.secondary, letterSpacing: 2, textAlign: 'center', maxWidth: 800 }}>
           {scene.text}
         </div>
       )}
@@ -307,7 +352,25 @@ const ConnectorScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'connecto
   );
 };
 
-const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }>; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+// Scene "MOMEN WAH": satu kalimat besar dominan + zoom pelan.
+const SpotlightScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'spotlight' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const isPortrait = height > width;
+  const spr = useSpringVal(frame, 4, 90, fps);
+  const zoom = 1 + Math.min(frame, 120) / 120 * 0.06;
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isPortrait ? '0 80px' : '0 160px' }}>
+      <BrandTag brandName={brandName} t={t} />
+      <MonoLabel label={scene.label} t={t} frame={frame} />
+      <div style={{ fontSize: isPortrait ? 96 : 88, fontWeight: 900, color: t.text, textAlign: 'center', transform: `scale(${spr * zoom})`, letterSpacing: '-2px', lineHeight: 1.05, textShadow: t.mode === 'dark' ? `0 0 80px ${hexToRgba(t.accent, 0.5)}` : 'none', maxWidth: 1100 }}>
+        <HighlightText text={scene.text} highlight={scene.highlight} accent={t.accent} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const isPortrait = height > width;
@@ -315,8 +378,8 @@ const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }
 
   return (
     <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isPortrait ? '0 90px' : '0 160px' }}>
-      <BrandTag brandName={brandName} accent={accent} />
-      <div style={{ opacity: titleFade, fontSize: isPortrait ? 60 : 54, fontWeight: 900, color: '#fff', marginBottom: 44, textAlign: 'center', letterSpacing: '-1px' }}>
+      <BrandTag brandName={brandName} t={t} />
+      <div style={{ opacity: titleFade, fontSize: isPortrait ? 60 : 54, fontWeight: 900, color: t.text, marginBottom: 44, textAlign: 'center', letterSpacing: '-1px' }}>
         {scene.title || 'Recap'}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 1000 }}>
@@ -325,9 +388,9 @@ const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }
           const f = useFade(frame, delay);
           const sc = useSpringVal(frame, delay, 140, fps);
           return (
-            <div key={i} style={{ opacity: f, transform: `scale(${sc})`, display: 'flex', alignItems: 'center', gap: 20, background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: isPortrait ? '22px 28px' : '20px 28px' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${accent}, ${secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900, color: '#fff', flexShrink: 0 }}>{i + 1}</div>
-              <span style={{ fontSize: isPortrait ? 32 : 28, color: '#fff', fontWeight: 600 }}>{s}</span>
+            <div key={i} style={{ opacity: f, transform: `scale(${sc})`, display: 'flex', alignItems: 'center', gap: 20, background: t.card, borderRadius: 16, padding: isPortrait ? '22px 28px' : '20px 28px' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${t.accent}, ${t.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900, color: '#fff', flexShrink: 0 }}>{i + 1}</div>
+              <span style={{ fontSize: isPortrait ? 32 : 28, color: t.text, fontWeight: 600 }}>{s}</span>
             </div>
           );
         })}
@@ -336,7 +399,7 @@ const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }
   );
 };
 
-const OutroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'outro' }>; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+const OutroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'outro' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const isPortrait = height > width;
@@ -347,22 +410,22 @@ const OutroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'outro' }>; a
 
   return (
     <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 100px' }}>
-      <BrandTag brandName={brandName} accent={accent} />
-      <div style={{ fontSize: isPortrait ? 80 : 72, fontWeight: 900, color: '#fff', textAlign: 'center', transform: `scale(${titleSpring}) translateY(${float}px)`, textShadow: `0 0 60px ${accent}88`, letterSpacing: '-2px', maxWidth: 1000 }}>
-        {scene.title}
+      <BrandTag brandName={brandName} t={t} />
+      <div style={{ fontSize: isPortrait ? 80 : 72, fontWeight: 900, color: t.text, textAlign: 'center', transform: `scale(${titleSpring}) translateY(${float}px)`, textShadow: t.mode === 'dark' ? `0 0 60px ${hexToRgba(t.accent, 0.53)}` : 'none', letterSpacing: '-2px', maxWidth: 1000 }}>
+        <HighlightText text={scene.title} highlight={scene.highlight} accent={t.accent} />
       </div>
       {scene.subtitle && (
-        <div style={{ opacity: subFade, fontSize: isPortrait ? 32 : 28, color: 'rgba(255,255,255,0.7)', marginTop: 22, textAlign: 'center', maxWidth: 800 }}>
+        <div style={{ opacity: subFade, fontSize: isPortrait ? 32 : 28, color: t.textMuted, marginTop: 22, textAlign: 'center', maxWidth: 800 }}>
           {scene.subtitle}
         </div>
       )}
       {scene.cta && (
-        <div style={{ transform: `scale(${ctaSpring})`, marginTop: 42, background: `linear-gradient(135deg, ${accent}, ${secondary})`, color: '#fff', padding: '18px 52px', borderRadius: 999, fontSize: 26, fontWeight: 800, letterSpacing: 1, boxShadow: `0 0 50px ${accent}99` }}>
+        <div style={{ transform: `scale(${ctaSpring})`, marginTop: 42, background: `linear-gradient(135deg, ${t.accent}, ${t.secondary})`, color: '#fff', padding: '18px 52px', borderRadius: 999, fontSize: 26, fontWeight: 800, letterSpacing: 1, boxShadow: `0 0 50px ${hexToRgba(t.accent, 0.6)}` }}>
           {scene.cta}
         </div>
       )}
       {scene.handle && (
-        <div style={{ opacity: subFade, marginTop: 28, fontSize: 26, color: accent, fontWeight: 700, letterSpacing: 1 }}>
+        <div style={{ opacity: subFade, marginTop: 28, fontSize: 26, color: t.accent, fontWeight: 700, letterSpacing: 1, fontFamily: MONO }}>
           {scene.handle}
         </div>
       )}
@@ -372,22 +435,23 @@ const OutroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'outro' }>; a
 
 // ─── Scene Wrapper ──────────────────────────────────────────────────────────────
 
-const DEFAULT_DURATION = 120; // 4s @ 30fps — longgar untuk narasi TTS
+const DEFAULT_DURATION = 120; // 4s @ 30fps
 
-const SceneRouter: React.FC<{ scene: WorkflowScene; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+const SceneRouter: React.FC<{ scene: WorkflowScene; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const sceneImage = (scene as any).sceneImage as string | undefined;
   let content: React.ReactNode = null;
   switch (scene.type) {
-    case 'intro': content = <IntroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
-    case 'step': content = <StepScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
-    case 'connector': content = <ConnectorScene scene={scene} accent={accent} secondary={secondary} />; break;
-    case 'summary': content = <SummaryScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
-    case 'outro': content = <OutroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
+    case 'intro': content = <IntroScene scene={scene} t={t} brandName={brandName} />; break;
+    case 'step': content = <StepScene scene={scene} t={t} brandName={brandName} />; break;
+    case 'connector': content = <ConnectorScene scene={scene} t={t} />; break;
+    case 'spotlight': content = <SpotlightScene scene={scene} t={t} brandName={brandName} />; break;
+    case 'summary': content = <SummaryScene scene={scene} t={t} brandName={brandName} />; break;
+    case 'outro': content = <OutroScene scene={scene} t={t} brandName={brandName} />; break;
     default: return null;
   }
   return (
     <AbsoluteFill>
-      <SceneImageLayer src={sceneImage} accent={accent} />
+      <SceneImageLayer src={sceneImage} t={t} />
       {content}
     </AbsoluteFill>
   );
@@ -397,18 +461,21 @@ const SceneRouter: React.FC<{ scene: WorkflowScene; accent: string; secondary: s
 
 export const WorkflowExplainer: React.FC<WorkflowExplainerProps> = ({
   scenes,
-  bgColor = '#0B0710',
-  accentColor = '#7B3FA0',
-  secondaryColor = '#A855F7',
+  theme,
+  mode,
+  bgColor,
+  accentColor,
+  secondaryColor,
   brandName,
   referenceImageUrl,
 }) => {
   const { fps } = useVideoConfig();
+  const t = resolveTheme({ theme, mode, bgColor, accentColor, secondaryColor });
   let cursor = 0;
 
   return (
-    <AbsoluteFill style={{ background: bgColor, fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}>
-      <AnimatedBackground accent={accentColor} secondary={secondaryColor} bg={bgColor} />
+    <AbsoluteFill style={{ background: t.bg, fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}>
+      <AnimatedBackground t={t} />
       {referenceImageUrl ? (
         <AbsoluteFill style={{ opacity: 0.06, filter: 'blur(2px)' }}>
           <Img src={referenceImageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -421,12 +488,12 @@ export const WorkflowExplainer: React.FC<WorkflowExplainerProps> = ({
         cursor += dur;
         return (
           <Sequence key={i} from={from} durationInFrames={dur}>
-            <SceneRouter scene={scene} accent={accentColor} secondary={secondaryColor} brandName={brandName} />
+            <SceneRouter scene={scene} t={t} brandName={brandName} />
           </Sequence>
         );
       })}
 
-      <Grain />
+      <Grain t={t} />
     </AbsoluteFill>
   );
 };

@@ -764,16 +764,15 @@ export const RemotionRoot: React.FC = () => {
         height={1920}
         defaultProps={{
           brandName: 'Karmanrizky',
-          bgColor: '#0B0710',
-          accentColor: '#7B3FA0',
-          secondaryColor: '#A855F7',
+          theme: 'light-terracotta',
           scenes: [
-            { type: 'intro' as const, title: 'AI Content Batch Method', subtitle: 'Buat sekali, pakai berkali-kali', badge: 'WORKFLOW', icon: '🧠', duration: 4 },
-            { type: 'step' as const, stepNumber: 1, title: 'Capture Ideas', description: 'Jangan pernah kehilangan ide lagi. Tangkap di mana saja.', points: ['Trending topics', 'Pertanyaan audiens', 'Cerita pribadi'], tools: ['ChatGPT', 'Notes', 'Voice memo'], icon: '💡', duration: 5 },
+            { type: 'intro' as const, title: 'AI Content Batch Method', subtitle: 'Buat sekali, pakai berkali-kali', badge: 'WORKFLOW', icon: '🧠', highlight: 'Batch', duration: 4 },
+            { type: 'step' as const, stepNumber: 1, title: 'Capture Ideas', description: 'Jangan pernah kehilangan ide lagi.', points: [{ text: 'Trending topics', icon: '🔥' }, { text: 'Pertanyaan audiens', icon: '💬' }, { text: 'Cerita pribadi', icon: '📖' }], tools: ['ChatGPT', 'Notes'], icon: '💡', label: '< LANGKAH 1 >', highlight: 'Ideas', duration: 5 },
             { type: 'connector' as const, text: 'Lalu...', duration: 2 },
-            { type: 'step' as const, stepNumber: 2, title: 'Organize & Plan', description: 'Ubah ide berantakan jadi bucket konten yang rapi.', points: ['Educate', 'Inspire', 'Entertain', 'Promote'], icon: '🗂️', duration: 5 },
-            { type: 'summary' as const, title: 'The System', steps: ['Capture Ideas', 'Organize & Plan', 'Create in Batch', 'Schedule & Automate', 'Review & Improve'], duration: 5 },
-            { type: 'outro' as const, title: 'Batch it. Automate it. Grow.', subtitle: 'Sistem yang bekerja untuk Anda', cta: 'Follow untuk tips lainnya', handle: '@karmanrizky', duration: 4 },
+            { type: 'step' as const, stepNumber: 2, title: 'Organize & Plan', description: 'Ubah ide berantakan jadi bucket rapi.', points: [{ text: 'Educate', icon: '🎓' }, { text: 'Inspire', icon: '✨' }, { text: 'Entertain', icon: '🎬' }], icon: '🗂️', label: '< LANGKAH 2 >', duration: 5 },
+            { type: 'spotlight' as const, text: 'Satu jam kerja = konten sebulan', highlight: 'sebulan', label: '< INILAH TRIKNYA >', duration: 4 },
+            { type: 'summary' as const, title: 'The System', steps: ['Capture Ideas', 'Organize & Plan', 'Create in Batch', 'Schedule & Automate'], duration: 5 },
+            { type: 'outro' as const, title: 'Batch it. Automate it. Grow.', subtitle: 'Sistem yang bekerja untuk Anda', cta: 'Follow untuk tips lainnya', handle: '@karmanrizky', highlight: 'Grow', duration: 4 },
           ],
         }}
         calculateMetadata={({ props }: any) => ({

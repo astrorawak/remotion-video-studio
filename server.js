@@ -947,17 +947,17 @@ const MCP_TOOLS = [
   },
   {
     name: 'render_workflow_explainer',
-    description: 'Ubah sebuah WORKFLOW / INFOGRAFIS / proses step-by-step menjadi VIDEO ANIMASI penjelasan yang elegan. Setiap langkah muncul beranimasi (nomor besar, judul, deskripsi, poin-poin, dan chip tools) sehingga PAS dipadukan dengan narasi text-to-speech (TTS) di CapCut. Cocok untuk: menjelaskan diagram/metode/alur kerja dari gambar (mis. "AI Content Batch Method"), tutorial proses, atau penjelasan konsep bertahap. Brand ungu-hitam Karmanrizky. Default portrait (1080x1920) untuk TikTok/IG; gunakan parameter format untuk landscape (YouTube) atau square. Durasi tiap scene longgar agar narasi tidak terburu-buru. Setelah render selesai berikan link download.',
+    description: 'Ubah sebuah WORKFLOW / INFOGRAFIS / proses step-by-step menjadi VIDEO ANIMASI penjelasan yang elegan & TIDAK MEMBOSANKAN. Setiap langkah muncul beranimasi (nomor besar, judul dengan kata di-highlight, deskripsi, poin-poin ber-ikon/thumbnail, chip tools, label monospace konteks) sehingga PAS dipadukan dengan narasi TTS di CapCut. PENTING - TEMA ADAPTIF: video TIDAK lagi seragam ungu-hitam. WAJIB SESUAIKAN tema dengan GAYA & WARNA gambar workflow yang dianalisis agar tiap konten terasa BEDA & segar. Pakai parameter `theme` (preset) ATAU `mode`+`accentColor`+`bgColor` (custom dari warna dominan gambar). Preset tersedia: dark-purple (brand default), light-terracotta (gaya off-white + oranye coral, sangat nyaman ditonton), dark-emerald, light-blue, dark-gold, dark-crimson, light-mono, dark-cyan. Tambahkan scene tipe "spotlight" sebagai MOMEN WAH (satu kalimat besar mengejutkan). Default portrait (1080x1920); pakai `format` untuk landscape/square. Setelah render selesai berikan link download.',
     inputSchema: {
       type: 'object',
       properties: {
         scenes: {
           type: 'array',
-          description: 'Urutan scene workflow. Tipe yang tersedia: "intro" (title, subtitle, badge, icon), "step" (stepNumber, title, description, points[], tools[], icon), "connector" (text penghubung antar langkah, mis. "Lalu..."), "summary" (title, steps[] = rekap semua langkah), "outro" (title, subtitle, cta, handle). Setiap scene boleh punya field duration (detik). Susun: intro -> step (+connector di antaranya) -> summary -> outro.',
+          description: 'Urutan scene workflow. Tipe: "intro" (title, subtitle, badge, icon, highlight), "step" (stepNumber, title, description, points[], tools[], icon, label, highlight), "connector" (text penghubung), "spotlight" (text kalimat besar = MOMEN WAH, highlight, label), "summary" (title, steps[]), "outro" (title, subtitle, cta, handle, highlight). STRUKTUR STORYTELLING yang disarankan (meniru kreator viral): intro(HOOK ke hasil/janji) -> step(masalah/cara lama) -> step(solusi) -> step(bukti) -> spotlight(momen wah) -> outro(CTA membuktikan diri). Tiap scene boleh punya duration (detik) & sceneImage via imagePrompt.',
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['intro', 'step', 'connector', 'summary', 'outro'], description: 'Jenis scene' },
+              type: { type: 'string', enum: ['intro', 'step', 'connector', 'spotlight', 'summary', 'outro'], description: 'Jenis scene' },
               title: { type: 'string', description: 'Judul (intro/step/summary/outro)' },
               subtitle: { type: 'string', description: 'Subjudul (intro/outro)' },
               badge: { type: 'string', description: 'Label kecil di atas judul intro, mis. "WORKFLOW"' },
@@ -970,6 +970,8 @@ const MCP_TOOLS = [
               steps: { type: 'array', items: { type: 'string' }, description: 'Rekap langkah (scene summary)' },
               cta: { type: 'string', description: 'Tombol ajakan (scene outro)' },
               handle: { type: 'string', description: 'Handle akun (scene outro), mis. @karmanrizky' },
+              label: { type: 'string', description: 'OPSIONAL (scene step/spotlight). Pill MONOSPACE konteks di atas judul, mis. "< CARA LAMA >", "< INILAH TRIKNYA >". Meniru gaya kreator referensi agar terasa berkonteks.' },
+              highlight: { type: 'string', description: 'OPSIONAL (intro/step/spotlight/outro). Sebuah KATA/FRASA di dalam title/text yang akan diberi WARNA AKSEN untuk penekanan kinetik. Harus persis cocok dengan potongan teks di title/text.' },
               imagePrompt: { type: 'string', description: 'OPSIONAL. Prompt gambar AI (Bahasa Inggris) untuk dijadikan BACKGROUND cinematic scene ini. Server akan generate gambar via Replicate Flux lalu memasangnya full-screen dengan slow-zoom (Ken Burns) + overlay gelap agar teks tetap terbaca. Gunakan untuk scene yang ingin terlihat hidup/menakjubkan (mis. intro & step penting). SESUAIKAN dengan TOPIK scene (bukan selalu Bitcoin). Contoh per topik: trading="abstract glowing candlestick chart, purple neon, cinematic"; AI="glowing neural network nodes connected by light, futuristic, dark purple"; ekonomi="abstract currency symbol dissolving into light particles, dark moody"; mindset="lone silhouette on mountain peak at dawn, dramatic sky". Selalu Bahasa Inggris, nuansa deep purple/black, cinematic. Kosongkan jika scene cukup polos. Jangan masukkan teks/tulisan di prompt.' },
               duration: { type: 'number', description: 'Durasi scene dalam detik. Default: intro/outro 4, step 5, connector 2, summary 5.' },
             },
@@ -977,10 +979,12 @@ const MCP_TOOLS = [
           },
         },
         topic: { type: 'string', description: 'Topik/judul workflow (opsional, untuk referensi)' },
-        brandName: { type: 'string', description: 'Nama brand di pojok atas. Default "Karmanrizky"' },
-        accentColor: { type: 'string', description: 'Warna aksen utama hex. Default ungu #7B3FA0' },
+        brandName: { type: 'string', description: 'Nama brand di pojok atas. Default "Karmanrizky". Kosongkan ("") bila tak ingin brand tag.' },
+        theme: { type: 'string', enum: ['dark-purple', 'light-terracotta', 'dark-emerald', 'light-blue', 'dark-gold', 'dark-crimson', 'light-mono', 'dark-cyan'], description: 'PRESET TEMA. PILIH yang paling cocok dengan gaya/warna gambar workflow agar konten tidak seragam. light-terracotta = gaya kreator referensi (off-white nyaman). Jika gambar dominan terang pilih preset light-*, jika gelap pilih dark-*.' },
+        mode: { type: 'string', enum: ['dark', 'light'], description: 'OPSIONAL. Paksa mode terang/gelap (override preset). Pakai bila menentukan warna custom dari gambar: light=latar terang teks gelap, dark=latar gelap teks terang.' },
+        accentColor: { type: 'string', description: 'Warna aksen utama hex. Bila dipakai TANPA theme, ambil dari WARNA DOMINAN gambar workflow agar serasi. Default ungu #7B3FA0' },
         secondaryColor: { type: 'string', description: 'Warna aksen sekunder hex. Default #A855F7' },
-        bgColor: { type: 'string', description: 'Warna latar hex. Default #0B0710 (hitam keunguan)' },
+        bgColor: { type: 'string', description: 'Warna latar hex (override). Untuk mode light pakai warna terang mis. #F5EFE9; untuk dark mis. #0B0710.' },
         referenceImageUrl: { type: 'string', description: 'URL gambar workflow asli (opsional) untuk dipakai sebagai latar samar' },
       },
       required: ['scenes'],
@@ -2005,11 +2009,22 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
     const {
       scenes = [],
       brandName = 'Karmanrizky',
-      accentColor = '#7B3FA0',
-      secondaryColor = '#A855F7',
-      bgColor = '#0B0710',
+      theme,
+      mode,
+      accentColor,
+      secondaryColor,
+      bgColor,
       referenceImageUrl,
     } = args;
+    // themeProps hanya memuat field yang benar-benar diisi (biar resolver tema bekerja benar).
+    const themeProps = {};
+    if (theme) themeProps.theme = theme;
+    if (mode) themeProps.mode = mode;
+    if (accentColor) themeProps.accentColor = accentColor;
+    if (secondaryColor) themeProps.secondaryColor = secondaryColor;
+    if (bgColor) themeProps.bgColor = bgColor;
+    // Jika tak ada tema/warna sama sekali, pakai brand default agar tetap kompatibel.
+    if (!theme && !mode && !accentColor && !bgColor) { themeProps.theme = 'dark-purple'; }
     if (!Array.isArray(scenes) || scenes.length === 0) {
       return '❌ Parameter `scenes` wajib diisi (minimal 1 scene). Susun: intro → step (+connector) → summary → outro.';
     }
@@ -2023,7 +2038,7 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
 
     // Jika tidak ada permintaan gambar AI sama sekali → jalur cepat (perilaku lama, tanpa Replicate).
     if (totalImgCount === 0) {
-      const props = { scenes, brandName, accentColor, secondaryColor, bgColor };
+      const props = { scenes, brandName, ...themeProps };
       if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
       startRender(renderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
       return `✅ **Workflow Explainer dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n⏱️ Estimasi render: 1-3 menit\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
@@ -2068,7 +2083,7 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
           enriched.push(scene);
         }
 
-        const props = { scenes: enriched, brandName, accentColor, secondaryColor, bgColor };
+        const props = { scenes: enriched, brandName, ...themeProps };
         if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
 
         renderJobs[renderId].message = '🎬 Visual siap! Merender video...';
