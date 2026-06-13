@@ -405,7 +405,7 @@ const StatementScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'statemen
     <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: align, padding: isPortrait ? `0 70px ${scene.align === 'bottom' ? '220px' : '0'}` : '0 160px' }}>
       <BrandTag brandName={brandName} t={t} />
       <MonoLabel label={scene.label} t={t} frame={frame} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isPortrait ? '10px 18px' : '10px 20px', maxWidth: 1100 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'baseline', rowGap: isPortrait ? 6 : 8, maxWidth: 1100 }}>
         {words.map((w, i) => {
           const delay = 4 + i * perWord;
           const isHl = hl.some((h) => w.toLowerCase().replace(/[.,!?]/g, '').includes(h));
@@ -424,7 +424,8 @@ const StatementScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'statemen
                 fontWeight: 900,
                 textTransform: 'uppercase',
                 letterSpacing: '-1px',
-                lineHeight: 1.08,
+                lineHeight: 1.12,
+                marginRight: isPortrait ? 22 : 24,
                 color: isHl ? t.accent : t.text,
                 textShadow: `0 3px 0 ${stroke}, 0 0 ${isHl ? 50 : 24}px ${isHl ? hexToRgba(t.accent, 0.55) : (t.mode === 'dark' ? hexToRgba(t.accent, 0.2) : 'transparent')}`,
                 WebkitTextStroke: t.mode === 'light' ? `1px ${hexToRgba(t.text, 0.15)}` : 'none',
