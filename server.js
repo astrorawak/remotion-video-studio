@@ -945,6 +945,46 @@ const MCP_TOOLS = [
       required: [],
     },
   },
+  {
+    name: 'render_workflow_explainer',
+    description: 'Ubah sebuah WORKFLOW / INFOGRAFIS / proses step-by-step menjadi VIDEO ANIMASI penjelasan yang elegan. Setiap langkah muncul beranimasi (nomor besar, judul, deskripsi, poin-poin, dan chip tools) sehingga PAS dipadukan dengan narasi text-to-speech (TTS) di CapCut. Cocok untuk: menjelaskan diagram/metode/alur kerja dari gambar (mis. "AI Content Batch Method"), tutorial proses, atau penjelasan konsep bertahap. Brand ungu-hitam Karmanrizky. Default portrait (1080x1920) untuk TikTok/IG; gunakan parameter format untuk landscape (YouTube) atau square. Durasi tiap scene longgar agar narasi tidak terburu-buru. Setelah render selesai berikan link download.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scenes: {
+          type: 'array',
+          description: 'Urutan scene workflow. Tipe yang tersedia: "intro" (title, subtitle, badge, icon), "step" (stepNumber, title, description, points[], tools[], icon), "connector" (text penghubung antar langkah, mis. "Lalu..."), "summary" (title, steps[] = rekap semua langkah), "outro" (title, subtitle, cta, handle). Setiap scene boleh punya field duration (detik). Susun: intro -> step (+connector di antaranya) -> summary -> outro.',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['intro', 'step', 'connector', 'summary', 'outro'], description: 'Jenis scene' },
+              title: { type: 'string', description: 'Judul (intro/step/summary/outro)' },
+              subtitle: { type: 'string', description: 'Subjudul (intro/outro)' },
+              badge: { type: 'string', description: 'Label kecil di atas judul intro, mis. "WORKFLOW"' },
+              icon: { type: 'string', description: 'Emoji ikon (intro/step), mis. "💡"' },
+              stepNumber: { type: ['number', 'string'], description: 'Nomor langkah untuk scene step, mis. 1' },
+              description: { type: 'string', description: 'Penjelasan langkah (scene step)' },
+              points: { type: 'array', items: { type: 'string' }, description: 'Daftar poin yang muncul satu per satu (scene step)' },
+              tools: { type: 'array', items: { type: 'string' }, description: 'Daftar tools/aplikasi sebagai chip (scene step), mis. ["ChatGPT","Canva"]' },
+              text: { type: 'string', description: 'Teks penghubung (scene connector)' },
+              steps: { type: 'array', items: { type: 'string' }, description: 'Rekap langkah (scene summary)' },
+              cta: { type: 'string', description: 'Tombol ajakan (scene outro)' },
+              handle: { type: 'string', description: 'Handle akun (scene outro), mis. "@karmanrizky"' },
+              duration: { type: 'number', description: 'Durasi scene dalam detik. Default: intro/outro 4, step 5, connector 2, summary 5.' },
+            },
+            required: ['type'],
+          },
+        },
+        topic: { type: 'string', description: 'Topik/judul workflow (opsional, untuk referensi)' },
+        brandName: { type: 'string', description: 'Nama brand di pojok atas. Default "Karmanrizky"' },
+        accentColor: { type: 'string', description: 'Warna aksen utama hex. Default ungu #7B3FA0' },
+        secondaryColor: { type: 'string', description: 'Warna aksen sekunder hex. Default #A855F7' },
+        bgColor: { type: 'string', description: 'Warna latar hex. Default #0B0710 (hitam keunguan)' },
+        referenceImageUrl: { type: 'string', description: 'URL gambar workflow asli (opsional) untuk dipakai sebagai latar samar' },
+      },
+      required: ['scenes'],
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -1887,6 +1927,26 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
     const renderId = randomUUID();
     startRender(renderId, 'MarketDashboard', { title, subtitle, metrics, accentColor }, baseUrl, 2500, 6);
     return `✅ **Market Dashboard dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n⏱️ Estimasi: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres.`;
+  }
+
+  if (name === 'render_workflow_explainer') {
+    const {
+      scenes = [],
+      brandName = 'Karmanrizky',
+      accentColor = '#7B3FA0',
+      secondaryColor = '#A855F7',
+      bgColor = '#0B0710',
+      referenceImageUrl,
+    } = args;
+    if (!Array.isArray(scenes) || scenes.length === 0) {
+      return '❌ Parameter `scenes` wajib diisi (minimal 1 scene). Susun: intro → step (+connector) → summary → outro.';
+    }
+    const renderId = randomUUID();
+    const props = { scenes, brandName, accentColor, secondaryColor, bgColor };
+    if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
+    startRender(renderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
+    const totalSec = scenes.reduce((a, s) => a + (s.duration || (s.type === 'connector' ? 2 : s.type === 'step' || s.type === 'summary' ? 5 : 4)), 0);
+    return `✅ **Workflow Explainer dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n⏱️ Estimasi render: 1-3 menit\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
   }
 
   // check_render_status

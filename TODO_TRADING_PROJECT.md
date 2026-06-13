@@ -7,8 +7,11 @@
 - [x] Tambah dukungan format dinamis (portrait/landscape/square) GLOBAL ke semua tool
 
 ## Fase 2: Tool Baru
-- [ ] render_stock_ticker (ticker saham berjalan ala Bloomberg)
-- [ ] render_candlestick_chart (chart candlestick trading animasi)
+- [x] render_stock_ticker (ticker saham berjalan ala Bloomberg) - PASS
+- [x] render_candlestick_chart (chart candlestick trading animasi) - PASS
+- [x] render_breaking_news (banner breaking news TV) - PASS
+- [x] render_market_dashboard (counter angka multi-metrik) - PASS
+- [x] Deploy Railway: 31 tools aktif, semua test PASS, format portrait terbukti
 - [ ] render_breaking_news (banner breaking news ala TV)
 - [ ] render_number_counter (counter angka besar animasi untuk statistik)
 - [ ] Register semua komponen baru di index.tsx

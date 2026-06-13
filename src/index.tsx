@@ -24,6 +24,7 @@ import { VHSTimelineScene } from './compositions/VHSTimelineScene';
 import { MacOSDockScene } from './compositions/MacOSDockScene';
 import { YouTubeSubscribeScene } from './compositions/YouTubeSubscribeScene';
 import { ExplainerVideoScene } from './compositions/ExplainerVideoScene';
+import { WorkflowExplainer } from './compositions/WorkflowExplainer';
 import { CharacterAnimation } from './compositions/CharacterAnimation';
 import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
@@ -752,6 +753,32 @@ export const RemotionRoot: React.FC = () => {
           accentColor: '#7B3FA0',
           metrics: [],
         }}
+      />
+      {/* WorkflowExplainer - gambar/teks workflow → video animasi step-by-step */}
+      <Composition
+        id="WorkflowExplainer"
+        component={WorkflowExplainer as any}
+        durationInFrames={600}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          brandName: 'Karmanrizky',
+          bgColor: '#0B0710',
+          accentColor: '#7B3FA0',
+          secondaryColor: '#A855F7',
+          scenes: [
+            { type: 'intro' as const, title: 'AI Content Batch Method', subtitle: 'Buat sekali, pakai berkali-kali', badge: 'WORKFLOW', icon: '🧠', duration: 4 },
+            { type: 'step' as const, stepNumber: 1, title: 'Capture Ideas', description: 'Jangan pernah kehilangan ide lagi. Tangkap di mana saja.', points: ['Trending topics', 'Pertanyaan audiens', 'Cerita pribadi'], tools: ['ChatGPT', 'Notes', 'Voice memo'], icon: '💡', duration: 5 },
+            { type: 'connector' as const, text: 'Lalu...', duration: 2 },
+            { type: 'step' as const, stepNumber: 2, title: 'Organize & Plan', description: 'Ubah ide berantakan jadi bucket konten yang rapi.', points: ['Educate', 'Inspire', 'Entertain', 'Promote'], icon: '🗂️', duration: 5 },
+            { type: 'summary' as const, title: 'The System', steps: ['Capture Ideas', 'Organize & Plan', 'Create in Batch', 'Schedule & Automate', 'Review & Improve'], duration: 5 },
+            { type: 'outro' as const, title: 'Batch it. Automate it. Grow.', subtitle: 'Sistem yang bekerja untuk Anda', cta: 'Follow untuk tips lainnya', handle: '@karmanrizky', duration: 4 },
+          ],
+        }}
+        calculateMetadata={({ props }: any) => ({
+          durationInFrames: Math.max(150, (props.scenes || []).reduce((acc: number, s: any) => acc + Math.round((s.duration || 4) * 30), 0)),
+        })}
       />
     </>
   );
