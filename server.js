@@ -969,7 +969,8 @@ const MCP_TOOLS = [
               text: { type: 'string', description: 'Teks penghubung (scene connector)' },
               steps: { type: 'array', items: { type: 'string' }, description: 'Rekap langkah (scene summary)' },
               cta: { type: 'string', description: 'Tombol ajakan (scene outro)' },
-              handle: { type: 'string', description: 'Handle akun (scene outro), mis. "@karmanrizky"' },
+              handle: { type: 'string', description: 'Handle akun (scene outro), mis. @karmanrizky' },
+              imagePrompt: { type: 'string', description: 'OPSIONAL. Prompt gambar AI (Bahasa Inggris) untuk dijadikan BACKGROUND cinematic scene ini. Server akan generate gambar via Replicate Flux lalu memasangnya full-screen dengan slow-zoom (Ken Burns) + overlay gelap agar teks tetap terbaca. Gunakan untuk scene yang ingin terlihat hidup/menakjubkan (mis. intro & step penting). Contoh: "golden bitcoin coin floating over a dark financial chart, glowing". Kosongkan jika scene cukup polos. Jangan masukkan teks/tulisan di prompt.' },
               duration: { type: 'number', description: 'Durasi scene dalam detik. Default: intro/outro 4, step 5, connector 2, summary 5.' },
             },
             required: ['type'],
@@ -1002,6 +1003,51 @@ for (const _tool of MCP_TOOLS) {
       description: 'Rasio output video. "portrait" (1080x1920) untuk TikTok/Instagram Reels/Shorts, "landscape" (1920x1080) untuk YouTube, "square" (1080x1080) untuk feed Instagram. Default mengikuti rasio asli template.',
     };
   }
+}
+
+// ─────────────────────────────────────────────
+// Helper: generate satu gambar cinematic via Replicate Flux Schnell.
+// Dipakai untuk memperkaya scene Workflow Explainer (background per-scene).
+// Mengembalikan URL gambar, atau null jika gagal (render tetap lanjut tanpa gambar).
+// ─────────────────────────────────────────────
+async function generateReplicateImage(prompt, aspectRatio = '9:16') {
+  const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+  if (!REPLICATE_TOKEN || !prompt) return null;
+  // Style cinematic premium konsisten dengan brand Karmanrizky (ungu-hitam, elegan).
+  const styled = `${prompt}, cinematic, dramatic lighting, premium dark aesthetic with subtle purple tones, highly detailed, professional photography, depth of field, 8k, no text, no watermark`;
+  try {
+    const res = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 'black-forest-labs/flux-schnell',
+        input: { prompt: styled, num_outputs: 1, aspect_ratio: aspectRatio, output_format: 'webp', output_quality: 90, go_fast: true },
+      }),
+    });
+    const pred = await res.json();
+    if (!pred.id) { console.error('[ReplicateImg] no id:', JSON.stringify(pred).slice(0, 200)); return null; }
+    for (let i = 0; i < 45; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+        headers: { 'Authorization': `Bearer ${REPLICATE_TOKEN}` },
+      });
+      const data = await pollRes.json();
+      if (data.status === 'succeeded') return Array.isArray(data.output) ? data.output[0] : data.output;
+      if (data.status === 'failed' || data.status === 'canceled') { console.error('[ReplicateImg] failed:', data.error); return null; }
+    }
+    console.error('[ReplicateImg] timeout');
+    return null;
+  } catch (err) {
+    console.error('[ReplicateImg] error:', err.message);
+    return null;
+  }
+}
+
+// Map format video -> aspect ratio gambar Replicate.
+function formatToAspect(fmt) {
+  if (fmt === 'landscape') return '16:9';
+  if (fmt === 'square') return '1:1';
+  return '9:16'; // portrait default
 }
 
 // ─────────────────────────────────────────────
@@ -1942,11 +1988,65 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
       return '❌ Parameter `scenes` wajib diisi (minimal 1 scene). Susun: intro → step (+connector) → summary → outro.';
     }
     const renderId = randomUUID();
-    const props = { scenes, brandName, accentColor, secondaryColor, bgColor };
-    if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
-    startRender(renderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
     const totalSec = scenes.reduce((a, s) => a + (s.duration || (s.type === 'connector' ? 2 : s.type === 'step' || s.type === 'summary' ? 5 : 4)), 0);
-    return `✅ **Workflow Explainer dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n⏱️ Estimasi render: 1-3 menit\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
+
+    // Hitung berapa scene yang minta gambar AI (punya imagePrompt).
+    const imgScenes = scenes.filter(s => typeof s.imagePrompt === 'string' && s.imagePrompt.trim().length > 0);
+
+    // Jika tidak ada imagePrompt sama sekali → jalur cepat (perilaku lama, tanpa Replicate).
+    if (imgScenes.length === 0) {
+      const props = { scenes, brandName, accentColor, secondaryColor, bgColor };
+      if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
+      startRender(renderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
+      return `✅ **Workflow Explainer dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n⏱️ Estimasi render: 1-3 menit\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
+    }
+
+    // Jalur AI: generate gambar cinematic per-scene dulu, lalu render.
+    renderJobs[renderId] = { status: 'processing', progress: 5, message: `🎨 Menyiapkan ${imgScenes.length} visual AI cinematic...` };
+    const aspect = formatToAspect(_format);
+    (async () => {
+      try {
+        const enriched = [];
+        let done = 0;
+        for (const s of scenes) {
+          const scene = { ...s };
+          if (typeof scene.imagePrompt === 'string' && scene.imagePrompt.trim()) {
+            renderJobs[renderId].message = `🎨 Menggambar visual AI ${done + 1}/${imgScenes.length}...`;
+            const url = await generateReplicateImage(scene.imagePrompt, aspect);
+            if (url) scene.sceneImage = url;
+            done++;
+            renderJobs[renderId].progress = Math.min(45, 5 + done * (40 / imgScenes.length));
+          }
+          delete scene.imagePrompt;
+          enriched.push(scene);
+        }
+
+        const props = { scenes: enriched, brandName, accentColor, secondaryColor, bgColor };
+        if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
+
+        renderJobs[renderId].message = '🎬 Visual siap! Merender video...';
+        renderJobs[renderId].progress = 50;
+
+        const videoRenderId = randomUUID();
+        startRender(videoRenderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
+
+        for (let i = 0; i < 200; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const vj = renderJobs[videoRenderId];
+          if (!vj) break;
+          if (vj.status === 'done') {
+            renderJobs[renderId] = { status: 'done', progress: 100, downloadUrl: vj.downloadUrl, fileSize: vj.fileSize, message: 'Video selesai!' };
+            break;
+          } else if (vj.status === 'error') { throw new Error(vj.error); }
+          renderJobs[renderId].progress = Math.min(95, 50 + i * 0.5);
+          renderJobs[renderId].message = `🎬 Merender video... ${vj?.progress || 0}%`;
+        }
+      } catch (err) {
+        renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
+      }
+    })();
+
+    return `✅ **Workflow Explainer (+ Visual AI) dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n🎨 ${imgScenes.length} visual AI cinematic di-generate via Replicate\n⏱️ Estimasi: 2-5 menit (generate gambar + render)\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
   }
 
   // check_render_status

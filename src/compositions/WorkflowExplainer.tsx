@@ -23,6 +23,7 @@ export type WorkflowScene =
       icon?: string;
       badge?: string;
       duration?: number;
+      sceneImage?: string;
     }
   | {
       type: 'step';
@@ -33,17 +34,20 @@ export type WorkflowScene =
       icon?: string;
       tools?: string[];
       duration?: number;
+      sceneImage?: string;
     }
   | {
       type: 'connector';
       text?: string;
       duration?: number;
+      sceneImage?: string;
     }
   | {
       type: 'summary';
       title?: string;
       steps: string[];
       duration?: number;
+      sceneImage?: string;
     }
   | {
       type: 'outro';
@@ -52,6 +56,7 @@ export type WorkflowScene =
       cta?: string;
       handle?: string;
       duration?: number;
+      sceneImage?: string;
     };
 
 export interface WorkflowExplainerProps {
@@ -104,6 +109,32 @@ const Grain: React.FC = () => {
         </filter>
         <rect width="100%" height="100%" filter="url(#wf-noise)" />
       </svg>
+    </AbsoluteFill>
+  );
+};
+
+// Cinematic per-scene background image with slow Ken Burns zoom + dark overlay
+// agar gambar AI terasa hidup tapi teks tetap terbaca tajam.
+const SceneImageLayer: React.FC<{ src?: string; accent: string }> = ({ src, accent }) => {
+  const frame = useCurrentFrame();
+  if (!src) return null;
+  // Slow zoom dari 1.08 -> 1.18 sepanjang scene (Ken Burns) + drift halus.
+  const zoom = 1.08 + Math.min(frame, 240) / 240 * 0.1;
+  const driftX = Math.sin(frame / 90) * 14;
+  const driftY = Math.cos(frame / 110) * 12;
+  const intro = interpolate(frame, [0, 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden', opacity: intro }}>
+      <Img
+        src={src}
+        style={{
+          width: '100%', height: '100%', objectFit: 'cover',
+          transform: `scale(${zoom}) translate(${driftX}px, ${driftY}px)`,
+        }}
+      />
+      {/* Dark + accent overlay agar teks kontras dan brand terasa */}
+      <AbsoluteFill style={{ background: `linear-gradient(180deg, rgba(11,7,16,0.55) 0%, rgba(11,7,16,0.78) 55%, rgba(11,7,16,0.94) 100%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 38%, ${accent}22 0%, transparent 60%)` }} />
     </AbsoluteFill>
   );
 };
@@ -329,14 +360,22 @@ const OutroScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'outro' }>; a
 const DEFAULT_DURATION = 120; // 4s @ 30fps — longgar untuk narasi TTS
 
 const SceneRouter: React.FC<{ scene: WorkflowScene; accent: string; secondary: string; brandName?: string }> = ({ scene, accent, secondary, brandName }) => {
+  const sceneImage = (scene as any).sceneImage as string | undefined;
+  let content: React.ReactNode = null;
   switch (scene.type) {
-    case 'intro': return <IntroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />;
-    case 'step': return <StepScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />;
-    case 'connector': return <ConnectorScene scene={scene} accent={accent} secondary={secondary} />;
-    case 'summary': return <SummaryScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />;
-    case 'outro': return <OutroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />;
+    case 'intro': content = <IntroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
+    case 'step': content = <StepScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
+    case 'connector': content = <ConnectorScene scene={scene} accent={accent} secondary={secondary} />; break;
+    case 'summary': content = <SummaryScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
+    case 'outro': content = <OutroScene scene={scene} accent={accent} secondary={secondary} brandName={brandName} />; break;
     default: return null;
   }
+  return (
+    <AbsoluteFill>
+      <SceneImageLayer src={sceneImage} accent={accent} />
+      {content}
+    </AbsoluteFill>
+  );
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
