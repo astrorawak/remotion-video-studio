@@ -32,7 +32,7 @@ export type WorkflowScene =
       stepNumber: number | string;
       title: string;
       description?: string;
-      points?: Array<string | { text: string; icon?: string; image?: string }>;
+      points?: Array<string | { text: string; icon?: string; image?: string; highlight?: boolean }>;
       icon?: string;
       tools?: string[];
       duration?: number;
@@ -53,6 +53,15 @@ export type WorkflowScene =
       label?: string;
       duration?: number;
       sceneImage?: string;
+    }
+  | {
+      type: 'statement'; // gaya "podcast subtitle": kalimat ALL-CAPS karaoke per kata
+      text: string;
+      highlight?: string;     // satu/beberapa kata kunci diberi warna aksen
+      label?: string;
+      duration?: number;
+      sceneImage?: string;
+      align?: 'center' | 'bottom'; // posisi teks (default center)
     }
   | {
       type: 'summary';
@@ -188,6 +197,15 @@ const BrandTag: React.FC<{ brandName?: string; t: ThemeTokens }> = ({ brandName,
   );
 };
 
+// Kotak penyorot beraksen (ala "kotak merah" di video referensi): muncul fade + glow + denyut.
+export const HighlightRing: React.FC<{ t: ThemeTokens; frame: number; delay?: number }> = ({ t, frame, delay = 0 }) => {
+  const f = useFade(frame, delay, 10);
+  const pulse = 1 + Math.sin((frame - delay) / 7) * 0.03;
+  return (
+    <div style={{ position: 'absolute', inset: -10, borderRadius: 18, border: `3px solid ${t.accent}`, boxShadow: `0 0 24px ${hexToRgba(t.accent, 0.6)}, inset 0 0 18px ${hexToRgba(t.accent, 0.25)}`, opacity: f, transform: `scale(${pulse})`, pointerEvents: 'none' }} />
+  );
+};
+
 // Pill label monospace di atas-tengah (konteks scene).
 const MonoLabel: React.FC<{ label?: string; t: ThemeTokens; frame: number }> = ({ label, t, frame }) => {
   if (!label) return null;
@@ -286,8 +304,10 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; t: 
             const pSlide = interpolate(useSpringVal(frame, delay, 140, fps), [0, 1], [-50, 0]);
             const mediaScale = useSpringVal(frame, delay + 2, 150, fps);
             const thumb = isPortrait ? 72 : 64;
+            const isHl = (p as any).highlight === true;
             return (
-              <div key={i} style={{ opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: t.card, borderLeft: `4px solid ${t.accent}`, borderRadius: 14, padding: isPortrait ? '18px 24px' : '16px 24px' }}>
+              <div key={i} style={{ position: 'relative', opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: t.card, borderLeft: `4px solid ${t.accent}`, borderRadius: 14, padding: isPortrait ? '18px 24px' : '16px 24px' }}>
+                {isHl && <HighlightRing t={t} frame={frame} delay={delay + 6} />}
                 {p.image ? (
                   <div style={{ width: thumb, height: thumb, borderRadius: 14, overflow: 'hidden', flexShrink: 0, transform: `scale(${mediaScale})`, boxShadow: `0 8px 22px ${hexToRgba(t.accent, 0.27)}`, border: `2px solid ${hexToRgba(t.accent, 0.4)}` }}>
                     <Img src={p.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -370,6 +390,55 @@ const SpotlightScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'spotligh
   );
 };
 
+// Scene gaya "podcast subtitle": kalimat ALL-CAPS muncul KATA PER KATA (karaoke),
+// kata kunci (highlight) menyala/membesar. Teks ber-stroke agar terbaca di latar apapun.
+const StatementScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'statement' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const isPortrait = height > width;
+  const words = scene.text.split(' ');
+  const hl = (scene.highlight || '').toLowerCase().split(' ').filter(Boolean);
+  const stroke = t.mode === 'light' ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.55)';
+  const align = scene.align === 'bottom' ? 'flex-end' : 'center';
+  const perWord = 4; // frame antar kata (cepat, ala karaoke)
+  return (
+    <AbsoluteFill style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: align, padding: isPortrait ? `0 70px ${scene.align === 'bottom' ? '220px' : '0'}` : '0 160px' }}>
+      <BrandTag brandName={brandName} t={t} />
+      <MonoLabel label={scene.label} t={t} frame={frame} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isPortrait ? '10px 18px' : '10px 20px', maxWidth: 1100 }}>
+        {words.map((w, i) => {
+          const delay = 4 + i * perWord;
+          const isHl = hl.some((h) => w.toLowerCase().replace(/[.,!?]/g, '').includes(h));
+          const pop = useSpringVal(frame, delay, 220, fps);
+          const appear = useFade(frame, delay, 6);
+          // kata kunci sedikit "denyut" membesar saat muncul lalu stabil
+          const emphasize = isHl ? interpolate(useSpringVal(frame, delay, 200, fps), [0, 1], [1.35, 1.08]) : 1;
+          return (
+            <span
+              key={i}
+              style={{
+                display: 'inline-block',
+                opacity: appear,
+                transform: `scale(${pop * emphasize})`,
+                fontSize: isPortrait ? 84 : 78,
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '-1px',
+                lineHeight: 1.08,
+                color: isHl ? t.accent : t.text,
+                textShadow: `0 3px 0 ${stroke}, 0 0 ${isHl ? 50 : 24}px ${isHl ? hexToRgba(t.accent, 0.55) : (t.mode === 'dark' ? hexToRgba(t.accent, 0.2) : 'transparent')}`,
+                WebkitTextStroke: t.mode === 'light' ? `1px ${hexToRgba(t.text, 0.15)}` : 'none',
+              }}
+            >
+              {w}
+            </span>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const SummaryScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'summary' }>; t: ThemeTokens; brandName?: string }> = ({ scene, t, brandName }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -445,6 +514,7 @@ const SceneRouter: React.FC<{ scene: WorkflowScene; t: ThemeTokens; brandName?: 
     case 'step': content = <StepScene scene={scene} t={t} brandName={brandName} />; break;
     case 'connector': content = <ConnectorScene scene={scene} t={t} />; break;
     case 'spotlight': content = <SpotlightScene scene={scene} t={t} brandName={brandName} />; break;
+    case 'statement': content = <StatementScene scene={scene} t={t} brandName={brandName} />; break;
     case 'summary': content = <SummaryScene scene={scene} t={t} brandName={brandName} />; break;
     case 'outro': content = <OutroScene scene={scene} t={t} brandName={brandName} />; break;
     default: return null;
