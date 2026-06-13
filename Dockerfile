@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
   fonts-liberation \
   fonts-noto \
   fonts-noto-cjk \
+  fonts-noto-color-emoji \
   libasound2 \
   libatk-bridge2.0-0 \
   libatk1.0-0 \
