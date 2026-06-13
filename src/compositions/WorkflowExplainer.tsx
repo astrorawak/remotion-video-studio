@@ -132,9 +132,11 @@ const SceneImageLayer: React.FC<{ src?: string; accent: string }> = ({ src, acce
           transform: `scale(${zoom}) translate(${driftX}px, ${driftY}px)`,
         }}
       />
-      {/* Dark + accent overlay agar teks kontras dan brand terasa */}
-      <AbsoluteFill style={{ background: `linear-gradient(180deg, rgba(11,7,16,0.55) 0%, rgba(11,7,16,0.78) 55%, rgba(11,7,16,0.94) 100%)` }} />
-      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 38%, ${accent}22 0%, transparent 60%)` }} />
+      {/* Dark + accent overlay agar teks kontras dan brand terasa.
+         Overlay vertikal lebih kuat di bawah + scrim tengah agar gambar tidak menabrak teks. */}
+      <AbsoluteFill style={{ background: `linear-gradient(180deg, rgba(11,7,16,0.62) 0%, rgba(11,7,16,0.5) 38%, rgba(11,7,16,0.82) 70%, rgba(11,7,16,0.96) 100%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 50%, rgba(11,7,16,0.5) 0%, transparent 55%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 38%, ${accent}1A 0%, transparent 60%)` }} />
     </AbsoluteFill>
   );
 };
