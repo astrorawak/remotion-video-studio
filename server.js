@@ -964,13 +964,13 @@ const MCP_TOOLS = [
               icon: { type: 'string', description: 'Emoji ikon (intro/step), mis. "💡"' },
               stepNumber: { type: ['number', 'string'], description: 'Nomor langkah untuk scene step, mis. 1' },
               description: { type: 'string', description: 'Penjelasan langkah (scene step)' },
-              points: { type: 'array', items: { type: 'string' }, description: 'Daftar poin yang muncul satu per satu (scene step)' },
+              points: { type: 'array', items: { type: ['string', 'object'], properties: { text: { type: 'string', description: 'Teks poin' }, icon: { type: 'string', description: 'Emoji ikon relevan untuk poin ini, mis. "📊"' }, imagePrompt: { type: 'string', description: 'OPSIONAL. Prompt gambar AI (Bahasa Inggris) untuk thumbnail mini di poin ini, sesuai isi poin. Server generate via Replicate. Jika diisi, mengalahkan icon.' } } }, description: 'Daftar poin yang muncul satu per satu (scene step). Tiap poin boleh berupa STRING biasa, ATAU OBJEK {text, icon, imagePrompt} agar punya VISUAL sendiri. Disarankan tiap poin diberi `icon` emoji relevan (gratis & rapi); pakai `imagePrompt` hanya bila ingin thumbnail AI nyata per-poin.' },
               tools: { type: 'array', items: { type: 'string' }, description: 'Daftar tools/aplikasi sebagai chip (scene step), mis. ["ChatGPT","Canva"]' },
               text: { type: 'string', description: 'Teks penghubung (scene connector)' },
               steps: { type: 'array', items: { type: 'string' }, description: 'Rekap langkah (scene summary)' },
               cta: { type: 'string', description: 'Tombol ajakan (scene outro)' },
               handle: { type: 'string', description: 'Handle akun (scene outro), mis. @karmanrizky' },
-              imagePrompt: { type: 'string', description: 'OPSIONAL. Prompt gambar AI (Bahasa Inggris) untuk dijadikan BACKGROUND cinematic scene ini. Server akan generate gambar via Replicate Flux lalu memasangnya full-screen dengan slow-zoom (Ken Burns) + overlay gelap agar teks tetap terbaca. Gunakan untuk scene yang ingin terlihat hidup/menakjubkan (mis. intro & step penting). Contoh: "golden bitcoin coin floating over a dark financial chart, glowing". Kosongkan jika scene cukup polos. Jangan masukkan teks/tulisan di prompt.' },
+              imagePrompt: { type: 'string', description: 'OPSIONAL. Prompt gambar AI (Bahasa Inggris) untuk dijadikan BACKGROUND cinematic scene ini. Server akan generate gambar via Replicate Flux lalu memasangnya full-screen dengan slow-zoom (Ken Burns) + overlay gelap agar teks tetap terbaca. Gunakan untuk scene yang ingin terlihat hidup/menakjubkan (mis. intro & step penting). SESUAIKAN dengan TOPIK scene (bukan selalu Bitcoin). Contoh per topik: trading="abstract glowing candlestick chart, purple neon, cinematic"; AI="glowing neural network nodes connected by light, futuristic, dark purple"; ekonomi="abstract currency symbol dissolving into light particles, dark moody"; mindset="lone silhouette on mountain peak at dawn, dramatic sky". Selalu Bahasa Inggris, nuansa deep purple/black, cinematic. Kosongkan jika scene cukup polos. Jangan masukkan teks/tulisan di prompt.' },
               duration: { type: 'number', description: 'Durasi scene dalam detik. Default: intro/outro 4, step 5, connector 2, summary 5.' },
             },
             required: ['type'],
@@ -1990,32 +1990,53 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
     const renderId = randomUUID();
     const totalSec = scenes.reduce((a, s) => a + (s.duration || (s.type === 'connector' ? 2 : s.type === 'step' || s.type === 'summary' ? 5 : 4)), 0);
 
-    // Hitung berapa scene yang minta gambar AI (punya imagePrompt).
-    const imgScenes = scenes.filter(s => typeof s.imagePrompt === 'string' && s.imagePrompt.trim().length > 0);
+    // Hitung berapa gambar AI yang diminta: background scene (imagePrompt scene) + thumbnail poin (imagePrompt di dalam points).
+    const sceneImgCount = scenes.filter(s => typeof s.imagePrompt === 'string' && s.imagePrompt.trim().length > 0).length;
+    const pointImgCount = scenes.reduce((acc, s) => acc + ((Array.isArray(s.points) ? s.points : []).filter(p => p && typeof p === 'object' && typeof p.imagePrompt === 'string' && p.imagePrompt.trim()).length), 0);
+    const totalImgCount = sceneImgCount + pointImgCount;
 
-    // Jika tidak ada imagePrompt sama sekali → jalur cepat (perilaku lama, tanpa Replicate).
-    if (imgScenes.length === 0) {
+    // Jika tidak ada permintaan gambar AI sama sekali → jalur cepat (perilaku lama, tanpa Replicate).
+    if (totalImgCount === 0) {
       const props = { scenes, brandName, accentColor, secondaryColor, bgColor };
       if (referenceImageUrl) props.referenceImageUrl = referenceImageUrl;
       startRender(renderId, 'WorkflowExplainer', props, baseUrl, 3000, 5);
       return `✅ **Workflow Explainer dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n⏱️ Estimasi render: 1-3 menit\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
     }
 
-    // Jalur AI: generate gambar cinematic per-scene dulu, lalu render.
-    renderJobs[renderId] = { status: 'processing', progress: 5, message: `🎨 Menyiapkan ${imgScenes.length} visual AI cinematic...` };
+    // Jalur AI: generate gambar cinematic (background scene + thumbnail poin) dulu, lalu render.
+    renderJobs[renderId] = { status: 'processing', progress: 5, message: `🎨 Menyiapkan ${totalImgCount} visual AI...` };
     const aspect = formatToAspect(_format);
     (async () => {
       try {
         const enriched = [];
         let done = 0;
+        const bump = () => { done++; renderJobs[renderId].progress = Math.min(45, 5 + done * (40 / totalImgCount)); renderJobs[renderId].message = `🎨 Menggambar visual AI ${done}/${totalImgCount}...`; };
         for (const s of scenes) {
           const scene = { ...s };
+          // Background scene (square untuk poin-thumbnail nanti, tapi background ikut aspect penuh)
           if (typeof scene.imagePrompt === 'string' && scene.imagePrompt.trim()) {
-            renderJobs[renderId].message = `🎨 Menggambar visual AI ${done + 1}/${imgScenes.length}...`;
             const url = await generateReplicateImage(scene.imagePrompt, aspect);
             if (url) scene.sceneImage = url;
-            done++;
-            renderJobs[renderId].progress = Math.min(45, 5 + done * (40 / imgScenes.length));
+            bump();
+          }
+          // Thumbnail per-poin (objek points dengan imagePrompt) → square 1:1
+          if (Array.isArray(scene.points)) {
+            const newPoints = [];
+            for (const rawP of scene.points) {
+              if (rawP && typeof rawP === 'object') {
+                const point = { ...rawP };
+                if (typeof point.imagePrompt === 'string' && point.imagePrompt.trim()) {
+                  const purl = await generateReplicateImage(point.imagePrompt, '1:1');
+                  if (purl) point.image = purl;
+                  delete point.imagePrompt;
+                  bump();
+                }
+                newPoints.push(point);
+              } else {
+                newPoints.push(rawP);
+              }
+            }
+            scene.points = newPoints;
           }
           delete scene.imagePrompt;
           enriched.push(scene);
@@ -2046,7 +2067,7 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
       }
     })();
 
-    return `✅ **Workflow Explainer (+ Visual AI) dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n🎨 ${imgScenes.length} visual AI cinematic di-generate via Replicate\n⏱️ Estimasi: 2-5 menit (generate gambar + render)\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
+    return `✅ **Workflow Explainer (+ Visual AI) dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n🎨 ${totalImgCount} visual AI di-generate via Replicate (${sceneImgCount} background + ${pointImgCount} thumbnail poin)\n⏱️ Estimasi: 2-5 menit (generate gambar + render)\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
   }
 
   // check_render_status

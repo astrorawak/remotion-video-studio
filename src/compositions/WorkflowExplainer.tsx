@@ -30,7 +30,7 @@ export type WorkflowScene =
       stepNumber: number | string;
       title: string;
       description?: string;
-      points?: string[];
+      points?: Array<string | { text: string; icon?: string; image?: string }>;
       icon?: string;
       tools?: string[];
       duration?: number;
@@ -229,17 +229,30 @@ const StepScene: React.FC<{ scene: Extract<WorkflowScene, { type: 'step' }>; acc
         </div>
       )}
 
-      {/* Points (muncul satu per satu) */}
+      {/* Points (muncul satu per satu) — tiap poin bisa punya ikon/gambar AI sendiri */}
       {scene.points && scene.points.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1000 }}>
-          {scene.points.map((p, i) => {
+          {scene.points.map((rawP, i) => {
+            const p = typeof rawP === 'string' ? { text: rawP } : rawP;
             const delay = 38 + i * 14;
             const pFade = useFade(frame, delay);
             const pSlide = interpolate(useSpringVal(frame, delay, 140, fps), [0, 1], [-50, 0]);
+            const mediaScale = useSpringVal(frame, delay + 2, 150, fps);
+            const thumb = isPortrait ? 72 : 64;
             return (
-              <div key={i} style={{ opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: 'rgba(255,255,255,0.05)', borderLeft: `4px solid ${accent}`, borderRadius: 14, padding: isPortrait ? '20px 26px' : '18px 26px' }}>
-                <div style={{ width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: `0 0 12px ${accent}`, flexShrink: 0 }} />
-                <span style={{ fontSize: isPortrait ? 30 : 27, color: '#fff', fontWeight: 500 }}>{p}</span>
+              <div key={i} style={{ opacity: pFade, transform: `translateX(${pSlide}px)`, display: 'flex', alignItems: 'center', gap: 18, background: 'rgba(255,255,255,0.05)', borderLeft: `4px solid ${accent}`, borderRadius: 14, padding: isPortrait ? '18px 24px' : '16px 24px' }}>
+                {p.image ? (
+                  <div style={{ width: thumb, height: thumb, borderRadius: 14, overflow: 'hidden', flexShrink: 0, transform: `scale(${mediaScale})`, boxShadow: `0 8px 22px ${accent}44`, border: `2px solid ${accent}66` }}>
+                    <Img src={p.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ) : p.icon ? (
+                  <div style={{ width: thumb, height: thumb, borderRadius: 14, flexShrink: 0, transform: `scale(${mediaScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isPortrait ? 38 : 34, background: `linear-gradient(135deg, ${accent}33, ${secondary}22)`, border: `1.5px solid ${accent}55` }}>
+                    {p.icon}
+                  </div>
+                ) : (
+                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: `0 0 12px ${accent}`, flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: isPortrait ? 30 : 27, color: '#fff', fontWeight: 500 }}>{p.text}</span>
               </div>
             );
           })}
