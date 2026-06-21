@@ -15,6 +15,35 @@ if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const renderJobs = {};
 const PORT = process.env.PORT || 3000;
 
+// ─────────────────────────────────────────────
+// Render Queue — batasi maks 2 render bersamaan
+// agar Chrome headless tidak EAGAIN / OOM
+// ─────────────────────────────────────────────
+let activeRenderCount = 0;
+const MAX_CONCURRENT_RENDERS = 2;
+const renderQueue = [];
+
+function acquireRenderSlot() {
+  return new Promise((resolve) => {
+    if (activeRenderCount < MAX_CONCURRENT_RENDERS) {
+      activeRenderCount++;
+      resolve();
+    } else {
+      renderQueue.push(resolve);
+    }
+  });
+}
+
+function releaseRenderSlot() {
+  if (renderQueue.length > 0) {
+    const next = renderQueue.shift();
+    activeRenderCount = Math.max(1, activeRenderCount); // slot tetap 1 untuk next
+    next();
+  } else {
+    activeRenderCount = Math.max(0, activeRenderCount - 1);
+  }
+}
+
 process.on('uncaughtException', (err) => console.error('Uncaught:', err.message));
 process.on('unhandledRejection', (reason) => console.error('Rejection:', reason));
 
@@ -64,10 +93,23 @@ async function renderVideo(compositionId, inputProps, outputPath, format) {
     composition.width = dims.width;
     composition.height = dims.height;
   }
+  // Pastikan dimensi selalu genap (libx264 wajib lebar & tinggi kelipatan 2)
+  composition.width = Math.round(composition.width / 2) * 2;
+  composition.height = Math.round(composition.height / 2) * 2;
+
   await renderMedia({
-    composition, serveUrl: bundle, codec: 'h264', outputLocation: outputPath, inputProps,
+    composition,
+    serveUrl: bundle,
+    codec: 'h264',
+    outputLocation: outputPath,
+    inputProps,
     chromiumOptions: { disableWebSecurity: true, headless: true },
-    concurrency: 1, verbose: false,
+    concurrency: 1,
+    verbose: false,
+    // Fix FFmpeg encoder error: paksa yuv420p agar libx264 tidak reject frame
+    pixelFormat: 'yuv420p',
+    // CRF 23 = kualitas bagus, file tidak terlalu besar
+    crf: 23,
   });
 }
 
@@ -85,18 +127,29 @@ function startRender(renderId, compositionId, inputProps, baseUrl, progressInter
 }
 
 function startRenderJob(renderId, compositionId, inputProps, baseUrl, progressInterval = 3000, progressStep = 5, format = null) {
-  renderJobs[renderId] = { status: 'processing', progress: 10, message: 'Menyiapkan render...' };
-  const timer = setInterval(() => {
-    const job = renderJobs[renderId];
-    if (job && job.status === 'processing' && job.progress < 85) {
-      job.progress = Math.min(85, job.progress + progressStep);
-      job.message = `Merender... (${job.progress}%)`;
-    } else clearInterval(timer);
-  }, progressInterval);
+  renderJobs[renderId] = { status: 'processing', progress: 5, message: 'Menunggu slot render...' };
 
-  const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
-  renderVideo(compositionId, inputProps, outputPath, format)
-    .then(() => {
+  (async () => {
+    // Tunggu slot tersedia (maks 2 render bersamaan)
+    await acquireRenderSlot();
+    if (!renderJobs[renderId] || renderJobs[renderId].status === 'error') {
+      releaseRenderSlot();
+      return;
+    }
+    renderJobs[renderId].progress = 10;
+    renderJobs[renderId].message = 'Menyiapkan render...';
+
+    const timer = setInterval(() => {
+      const job = renderJobs[renderId];
+      if (job && job.status === 'processing' && job.progress < 85) {
+        job.progress = Math.min(85, job.progress + progressStep);
+        job.message = `Merender... (${job.progress}%)`;
+      } else clearInterval(timer);
+    }, progressInterval);
+
+    const outputPath = path.join(OUTPUT_DIR, `${renderId}.mp4`);
+    try {
+      await renderVideo(compositionId, inputProps, outputPath, format);
       clearInterval(timer);
       const stats = fs.statSync(outputPath);
       renderJobs[renderId] = {
@@ -105,12 +158,14 @@ function startRenderJob(renderId, compositionId, inputProps, baseUrl, progressIn
         fileSize: stats.size, message: 'Video berhasil dirender!',
       };
       console.log(`[Render] ${renderId} selesai (${(stats.size / 1024).toFixed(1)} KB)`);
-    })
-    .catch((err) => {
+    } catch (err) {
       clearInterval(timer);
       console.error(`[Render] ${renderId} error:`, err.message);
       renderJobs[renderId] = { status: 'error', progress: 0, error: err.message };
-    });
+    } finally {
+      releaseRenderSlot();
+    }
+  })();
 }
 
 // ─────────────────────────────────────────────
@@ -2208,6 +2263,9 @@ app.get('/health', (req, res) => {
     status: 'ok', engine: 'Remotion 4.0', version: '7.0.0',
     bundleReady: !!bundleLocation,
     activeJobs: Object.keys(renderJobs).filter(id => renderJobs[id].status === 'processing').length,
+    activeRenders: activeRenderCount,
+    queuedRenders: renderQueue.length,
+    maxConcurrentRenders: MAX_CONCURRENT_RENDERS,
     mcpEndpoint: `${getBaseUrl(req)}/mcp`,
     tools: MCP_TOOLS.length,
   });
