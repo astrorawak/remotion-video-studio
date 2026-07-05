@@ -30,6 +30,7 @@ import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
 import { BorneoVideo } from './compositions/BorneoVideo';
 import { StockTickerScene, CandlestickScene, BreakingNewsScene, MarketDashboardScene } from './compositions/TradingScenes';
+import { TheLastFold } from './compositions/TheLastFold';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -778,6 +779,16 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(150, (props.scenes || []).reduce((acc: number, s: any) => acc + Math.round((s.duration || 4) * 30), 0)),
         })}
+      />
+      {/* TheLastFold — origami deforestation short (9:16, 30s, fixed 900 frames) */}
+      <Composition
+        id="TheLastFold"
+        component={TheLastFold as any}
+        durationInFrames={900}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{}}
       />
     </>
   );
