@@ -30,6 +30,8 @@ import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
 import { BorneoVideo } from './compositions/BorneoVideo';
 import { StockTickerScene, CandlestickScene, BreakingNewsScene, MarketDashboardScene } from './compositions/TradingScenes';
+import { Main as MotorcycleRoadConflict } from './compositions/Main';
+import { VIDEO_CONFIG } from './config/videoConfig';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -778,6 +780,15 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(150, (props.scenes || []).reduce((acc: number, s: any) => acc + Math.round((s.duration || 4) * 30), 0)),
         })}
+      />
+      {/* Motorcycle Road Conflict - 3D-styled cinematic short (portrait) */}
+      <Composition
+        id="Main"
+        component={MotorcycleRoadConflict}
+        durationInFrames={VIDEO_CONFIG.TOTAL_FRAMES}
+        fps={VIDEO_CONFIG.FPS}
+        width={VIDEO_CONFIG.WIDTH}
+        height={VIDEO_CONFIG.HEIGHT}
       />
     </>
   );
