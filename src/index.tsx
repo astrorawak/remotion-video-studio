@@ -30,6 +30,7 @@ import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
 import { BorneoVideo } from './compositions/BorneoVideo';
 import { StockTickerScene, CandlestickScene, BreakingNewsScene, MarketDashboardScene } from './compositions/TradingScenes';
+import { Main as MotorcycleConflictReel } from './compositions/Main';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -778,6 +779,16 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(150, (props.scenes || []).reduce((acc: number, s: any) => acc + Math.round((s.duration || 4) * 30), 0)),
         })}
+      />
+
+      {/* Motorcycle Conflict Reel - 13s 9:16 Instagram Reel */}
+      <Composition
+        id="MotorcycleConflictReel"
+        component={MotorcycleConflictReel}
+        durationInFrames={390}
+        fps={30}
+        width={1080}
+        height={1920}
       />
     </>
   );
