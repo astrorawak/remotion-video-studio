@@ -1046,6 +1046,20 @@ const MCP_TOOLS = [
       required: ['scenes'],
     },
   },
+  {
+    name: 'render_little_bully_video',
+    description: '"The Little Bully" — video komedi FIKSI 13 detik (portrait 1080x1920) tentang orang dewasa berperawakan kecil yang mencoba mengintimidasi orang tinggi yang tenang, lalu berakhir konyol (ditepuk kepalanya). Karakter generik, bukan rekreasi orang/kejadian nyata. Cocok untuk Instagram Reels/TikTok komedi ringan.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bullyTankTop: { type: 'string', description: 'Warna hex tank top si bully. Default #FFD400 (kuning)' },
+        bullyShorts: { type: 'string', description: 'Warna hex celana pendek si bully. Default #7B3FA0 (ungu)' },
+        accentColor: { type: 'string', description: 'Warna aksen judul & kartu moral. Default #FF6B6B' },
+        skyTop: { type: 'string', description: 'Warna hex langit bagian atas. Default #6FC3E8' },
+        skyBottom: { type: 'string', description: 'Warna hex langit bagian bawah. Default #BFE8FF' },
+      },
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -2165,6 +2179,20 @@ Gunakan \`check_render_status\` dengan render ID di atas untuk memantau progres.
     })();
 
     return `✅ **Workflow Explainer (+ Visual AI) dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 ${scenes.length} scene · ~${totalSec} detik\n🎨 ${totalImgCount} visual AI di-generate via Replicate (${sceneImgCount} background + ${pointImgCount} thumbnail poin)\n⏱️ Estimasi: 2-5 menit (generate gambar + render)\n\nGunakan \`check_render_status\` untuk memantau progres. Video cocok dipadukan dengan narasi TTS di CapCut.`;
+  }
+
+  // render_little_bully_video
+  if (name === 'render_little_bully_video') {
+    const {
+      bullyTankTop = '#FFD400',
+      bullyShorts = '#7B3FA0',
+      accentColor = '#FF6B6B',
+      skyTop = '#6FC3E8',
+      skyBottom = '#BFE8FF',
+    } = args;
+    const renderId = randomUUID();
+    startRender(renderId, 'LittleBully', { bullyTankTop, bullyShorts, accentColor, skyTop, skyBottom }, baseUrl, 3000, 5);
+    return `✅ **The Little Bully dimulai!**\n\n📋 **Render ID**: \`${renderId}\`\n🎬 Video komedi fiksi 13 detik (1080x1920)\n⏱️ Estimasi render: 30-60 detik\n\nGunakan \`check_render_status\` untuk memantau progres dan mendapatkan link download.`;
   }
 
   // check_render_status

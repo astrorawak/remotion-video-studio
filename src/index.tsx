@@ -30,6 +30,7 @@ import { AICharacterVideo } from './compositions/AICharacterVideo';
 import { BaranganehVideo } from './compositions/BaranganehVideo';
 import { BorneoVideo } from './compositions/BorneoVideo';
 import { StockTickerScene, CandlestickScene, BreakingNewsScene, MarketDashboardScene } from './compositions/TradingScenes';
+import { LittleBullyScene } from './compositions/LittleBullyScene';
 
 // ─────────────────────────────────────────────
 // Multi-Scene Video Composition
@@ -778,6 +779,22 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }: any) => ({
           durationInFrames: Math.max(150, (props.scenes || []).reduce((acc: number, s: any) => acc + Math.round((s.duration || 4) * 30), 0)),
         })}
+      />
+      {/* LittleBullyScene - fictional comedy short (portrait, 13s) */}
+      <Composition
+        id="LittleBully"
+        component={LittleBullyScene as any}
+        durationInFrames={390}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          bullyTankTop: '#FFD400',
+          bullyShorts: '#7B3FA0',
+          accentColor: '#FF6B6B',
+          skyTop: '#6FC3E8',
+          skyBottom: '#BFE8FF',
+        }}
       />
     </>
   );
